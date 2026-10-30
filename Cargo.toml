@@ -19,6 +19,14 @@ path = "src/lib.rs"
 name = "seiche"
 path = "src/main.rs"
 
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net", "sync"] }
+tokio-tungstenite = { version = "0.23", features = ["native-tls"] }
+futures-util = "0.3"
+rsa = { version = "0.9", features = ["sha2"] }
+base64 = "0.22"
+serde_json = "1"
+
 [profile.release]
 opt-level = 3
 lto = "fat"

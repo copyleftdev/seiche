@@ -467,6 +467,10 @@ canvas#fee-canvas {
 
   <div class="inst-metrics-bar">
     <div class="metric-chip">
+      <span class="k">feed:</span>
+      <span id="top-feed" class="v ochre">VOPR SIM</span>
+    </div>
+    <div class="metric-chip">
       <span class="k">stabilize:</span>
       <span id="top-ns" class="v cobalt">184 ns</span>
     </div>
@@ -1286,9 +1290,70 @@ canvas#fee-canvas {
   updateInspector(13, 'Ready');
   window.addEventListener('resize', buildLayout);
 
+  // Live Kalshi WebSocket SSE attachment (auto-detects local `seiche serve` on :8790)
+  let liveWsActive = false;
+  function connectLiveSse() {
+    const sseUrl = (window.location.port === '8790')
+      ? '/events'
+      : 'http://127.0.0.1:8790/events';
+    try {
+      const es = new EventSource(sseUrl);
+      es.addEventListener('status', function(ev) {
+        try {
+          const d = JSON.parse(ev.data);
+          liveWsActive = true;
+          const feedEl = document.getElementById('top-feed');
+          feedEl.textContent = d.ws_connected ? 'KALSHI LIVE WS' : 'SEICHE SSE';
+          feedEl.className = 'v jade';
+          pushLog(`[LIVE WS CONNECTED] Attached to real Kalshi V2 WebSocket via seiche serve (:8790)`, 'harvest');
+        } catch (_) {}
+      });
+      es.addEventListener('dag', function(ev) {
+        try {
+          const d = JSON.parse(ev.data);
+          liveWsActive = true;
+          const feedEl = document.getElementById('top-feed');
+          feedEl.textContent = 'KALSHI LIVE WS';
+          feedEl.className = 'v jade';
+
+          if (d.kind === 'gap' || d.kind === 'resync') {
+            wsGapsHealed++;
+            const sIdx = (typeof d.slot === 'number' && d.slot < STRIKES.length) ? d.slot : 0;
+            const leafId = 6 + sIdx;
+            nodes[leafId].gapPulse = 1.0;
+            spawnWaveRing(nodes[leafId].x, nodes[leafId].y, VERMILION, 38);
+            pushLog(`[LIVE WS GAP] ${d.ticker} seq #${d.seq || '?'} buffered & healed`, 'gap');
+            syncTopTelemetry(88, 0);
+            return;
+          }
+
+          if (d.kind === 'tick') {
+            const sIdx = (typeof d.slot === 'number' && d.slot < STRIKES.length) ? d.slot : 0;
+            STRIKES[sIdx].tk = d.ticker || STRIKES[sIdx].tk;
+            nodes[6 + sIdx].label = STRIKES[sIdx].tk.replace(/^KX/, '').slice(0, 14);
+            const deltaCc = (typeof d.delta_cc === 'number') ? d.delta_cc : (d.bid_cc - STRIKES[sIdx].bid);
+            propagateStrike(sIdx, deltaCc, true);
+            if (typeof d.ns === 'number') {
+              document.getElementById('top-ns').textContent = d.ns + ' ns';
+            }
+          }
+        } catch (_) {}
+      });
+      es.onerror = function() {
+        liveWsActive = false;
+        const feedEl = document.getElementById('top-feed');
+        if (feedEl) {
+          feedEl.textContent = 'VOPR SIM';
+          feedEl.className = 'v ochre';
+        }
+      };
+    } catch (_) {}
+  }
+  connectLiveSse();
+
   let lastTick = performance.now();
   function loop(now) {
-    if (running && now - lastTick > 420) {
+    if (running && !liveWsActive && now - lastTick > 420) {
       stepOnce();
       lastTick = now;
     }

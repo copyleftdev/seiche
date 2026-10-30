@@ -6,6 +6,7 @@ use seiche::cutoff::Cutoff;
 use seiche::delta::{Delta, QuoteState};
 use seiche::dst::{run_vopr_world, SplitMix64};
 use seiche::graph::{kalshi_taker_fee_cc, Graph, LeafHandle, NodeId};
+use seiche::serve::run_serve;
 use seiche::shadow::{run_shadow_session, PositionSpec, TickSample};
 
 fn print_usage() {
@@ -13,6 +14,7 @@ fn print_usage() {
         "seiche 0.1.0 — Incremental DAG & VOPR Engine for Prediction-Market Orderbooks
 
 USAGE:
+  seiche serve [--port 8790] [--tickers T1,T2,...]
   seiche bench [--symbols N] [--events M] [--json]
   seiche sim [--seeds S] [--symbols N] [--steps K] [--json]
   seiche shadow [--json]
@@ -20,6 +22,7 @@ USAGE:
   seiche fee --qty-h Q --price-cc P [--json]
 
 COMMANDS:
+  serve   Start live Kalshi V2 WebSocket -> Seiche DAG -> SSE Observatory server
   bench   Benchmark O(1) stabilization & IncrFold vs O(N) across N symbols
   sim     Run VOPR deterministic simulation campaign (Seiche DAG vs 60m cron poll)
   shadow  Run live/replay shadow comparison of Seiche DAG vs 60m harvest_scan
@@ -457,9 +460,34 @@ fn cmd_shadow(args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+fn cmd_serve(args: &[String]) -> ExitCode {
+    let mut port = 8790u16;
+    let mut tickers: Option<String> = None;
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--port" if i + 1 < args.len() => {
+                port = args[i + 1].parse().unwrap_or(8790);
+                i += 2;
+            }
+            "--tickers" if i + 1 < args.len() => {
+                tickers = Some(args[i + 1].clone());
+                i += 2;
+            }
+            _ => i += 1,
+        }
+    }
+    if let Err(e) = run_serve(port, tickers) {
+        eprintln!("seiche serve error: {e}");
+        return ExitCode::from(1);
+    }
+    ExitCode::SUCCESS
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
     match args.first().map(|s| s.as_str()) {
+        Some("serve") => cmd_serve(&args[1..]),
         Some("bench") => cmd_bench(&args[1..]),
         Some("sim") => cmd_sim(&args[1..]),
         Some("shadow") => cmd_shadow(&args[1..]),
