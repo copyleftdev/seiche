@@ -67,6 +67,9 @@ pub struct SseBroker {
     clients: Mutex<Vec<SseClient>>,
     pub total_events_broadcast: Mutex<u64>,
     pub ws_connected: Mutex<bool>,
+    pub total_cutoffs: Mutex<u64>,
+    pub total_harvest_fires: Mutex<u64>,
+    pub total_ws_gaps: Mutex<u64>,
 }
 
 impl SseBroker {
@@ -75,6 +78,9 @@ impl SseBroker {
             clients: Mutex::new(Vec::with_capacity(MAX_CLIENTS)),
             total_events_broadcast: Mutex::new(0),
             ws_connected: Mutex::new(false),
+            total_cutoffs: Mutex::new(0),
+            total_harvest_fires: Mutex::new(0),
+            total_ws_gaps: Mutex::new(0),
         })
     }
 
@@ -279,11 +285,26 @@ fn handle_http(mut stream: TcpStream, broker: Arc<SseBroker>, index_html: &str) 
                 .total_events_broadcast
                 .lock()
                 .unwrap_or_else(|e| e.into_inner());
+            let cutoffs = *broker
+                .total_cutoffs
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            let harvests = *broker
+                .total_harvest_fires
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            let gaps = *broker
+                .total_ws_gaps
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             let body = format!(
-                "{{\"ok\":true,\"clients\":{},\"ws_connected\":{},\"events_broadcast\":{}}}\n",
+                "{{\"ok\":true,\"clients\":{},\"ws_connected\":{},\"events_broadcast\":{},\"cutoffs_suppressed\":{},\"harvest_triggers\":{},\"ws_gaps_detected\":{}}}\n",
                 broker.client_count(),
                 ws_up,
-                ev_cnt
+                ev_cnt,
+                cutoffs,
+                harvests,
+                gaps
             );
             let _ = write_http_response(&mut stream, 200, "application/json", body.as_bytes());
         }
@@ -401,10 +422,19 @@ async fn ws_dag_loop(broker: Arc<SseBroker>, tickers_override: Option<String>) {
 
     // Per-subscription-id sequence buffer (`DeltaBuffer`)
     let mut seq_buffers: HashMap<u64, DeltaBuffer<i64>> = HashMap::new();
-    // UI frame-rate pacing: emit at most 1 SSE update per >=75ms (~13 events/sec max)
-    // while tracking cumulative cutoffs andstabilizations on the backend.
+    // UI frame-rate pacing: emit at most 1 SSE update per >=125ms (8Hz max)
+    // while tracking cumulative cutoffs and stabilizations on the backend.
     let mut last_ui_emit = Instant::now() - Duration::from_secs(1);
     let mut suppressed_cutoffs: u64 = 0;
+
+    // Shadow ledger + heartbeat paths (env-configurable, defaults under ~/.local/share/seiche/)
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let data_dir =
+        std::env::var("SEICHE_DATA_DIR").unwrap_or_else(|_| format!("{home}/.local/share/seiche"));
+    let _ = std::fs::create_dir_all(&data_dir);
+    let ledger_path = format!("{data_dir}/shadow_ledger.jsonl");
+    let heartbeat_path = format!("{data_dir}/heartbeat");
+    let mut last_ledger_by_ticker: HashMap<String, Instant> = HashMap::new();
 
     let key_id = std::env::var("API_KEY_ID").ok();
     let pem_opt = std::env::var("KALSHI_PRIVATE_KEY_PATH")
@@ -595,10 +625,18 @@ async fn ws_dag_loop(broker: Arc<SseBroker>, tickers_override: Option<String>) {
                                 missing_seq,
                                 retransmits,
                             } => {
+                                if let Ok(mut gcnt) = broker.total_ws_gaps.lock() {
+                                    *gcnt += 1;
+                                }
+                                let ts_now = SystemTime::now()
+                                    .duration_since(UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_secs();
                                 let gap_json = format!(
-                                    "{{\"kind\":\"gap\",\"ticker\":\"{}\",\"slot\":{},\"seq\":{},\"missing_seq\":{},\"retransmits\":{}}}",
-                                    market_ticker, slot, s, missing_seq, retransmits
+                                    "{{\"ts\":{},\"kind\":\"gap\",\"ticker\":\"{}\",\"slot\":{},\"seq\":{},\"missing_seq\":{},\"retransmits\":{}}}",
+                                    ts_now, market_ticker, slot, s, missing_seq, retransmits
                                 );
+                                append_jsonl(&ledger_path, &gap_json);
                                 broker.broadcast("dag", &gap_json);
                                 continue;
                             }
@@ -627,8 +665,44 @@ async fn ws_dag_loop(broker: Arc<SseBroker>, tickers_override: Option<String>) {
             let recomputed = g.last_recompute_count;
             if recomputed == 0 {
                 suppressed_cutoffs += 1;
+                if let Ok(mut ccnt) = broker.total_cutoffs.lock() {
+                    *ccnt = suppressed_cutoffs;
+                }
             }
             let harvest_fired = out_events.iter().any(|e| e.new_value > 0);
+            let fee_cc = kalshi_taker_fee_cc(OBSERVATORY_SLOTS[slot].4, new_bid_cc);
+
+            if harvest_fired {
+                if let Ok(mut hcnt) = broker.total_harvest_fires.lock() {
+                    *hcnt += 1;
+                }
+                // Dedupe shadow_ledger harvest entries per ticker to at most 1 per 60s
+                let should_log = last_ledger_by_ticker
+                    .get(market_ticker)
+                    .map(|t| t.elapsed() >= Duration::from_secs(60))
+                    .unwrap_or(true);
+                if should_log {
+                    last_ledger_by_ticker.insert(market_ticker.to_string(), Instant::now());
+                    let ts_now = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+                    let log_line = format!(
+                        "{{\"ts\":{},\"kind\":\"harvest_trigger\",\"ticker\":\"{}\",\"slot\":{},\"bid_cc\":{},\"delta_cc\":{},\"fee_cc\":{},\"ns\":{},\"cutoffs_suppressed\":{},\"seq\":{}}}",
+                        ts_now,
+                        market_ticker,
+                        slot,
+                        new_bid_cc,
+                        delta_cc,
+                        fee_cc,
+                        elapsed_ns.max(45),
+                        suppressed_cutoffs,
+                        seq.unwrap_or(0)
+                    );
+                    append_jsonl(&ledger_path, &log_line);
+                    let _ = std::fs::write(&heartbeat_path, ts_now.to_string());
+                }
+            }
 
             // Pace SSE emissions to <= 8 events/sec (>= 125ms gap) unconditionally,
             // so the browser UI never receives an unthrottled firehose.
@@ -636,7 +710,6 @@ async fn ws_dag_loop(broker: Arc<SseBroker>, tickers_override: Option<String>) {
                 continue;
             }
             last_ui_emit = Instant::now();
-            let fee_cc = kalshi_taker_fee_cc(OBSERVATORY_SLOTS[slot].4, new_bid_cc);
 
             let ev_json = format!(
                 "{{\"kind\":\"tick\",\"msg_type\":\"{}\",\"ticker\":\"{}\",\"slot\":{},\"bid_cc\":{},\"delta_cc\":{},\"recomputed\":{},\"ns\":{},\"fee_cc\":{},\"harvest_fired\":{},\"cutoffs\":{},\"seq\":{}}}",
@@ -654,6 +727,16 @@ async fn ws_dag_loop(broker: Arc<SseBroker>, tickers_override: Option<String>) {
             );
             broker.broadcast("dag", &ev_json);
         }
+    }
+}
+
+fn append_jsonl(path: &str, line: &str) {
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(f, "{line}");
     }
 }
 

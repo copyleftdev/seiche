@@ -194,6 +194,12 @@ canvas#seiche-stage {
   let totalEvents = 0;
   let totalCutoffs = 0;
   let totalHarvests = 0;
+  let totalGaps = 0;
+  let chapterTitle = '';
+  let chapterSub = '';
+  let chapterAlpha = 0;
+  let chapterTargetAlpha = 0;
+  const cascadeQueue = []; // frame-counted delayed cascade hops (deterministic under both live & offline capture)
 
   function buildGraph() {
     const dpr = window.devicePixelRatio || 1;
@@ -391,45 +397,54 @@ canvas#seiche-stage {
 
     activateEdge(leafNodeId, compNodeId, COL_CYAN, 0.055);
 
-    setTimeout(() => {
-      if (!nodes[compNodeId]) return;
-      nodes[compNodeId].glow = 1.0;
-      activateEdge(compNodeId, foldNodeId, COL_ORCHID, 0.048);
-    }, 55);
-
-    setTimeout(() => {
-      if (!nodes[foldNodeId]) return;
-      nodes[foldNodeId].glow = 1.0;
-      spawnRing(nodes[foldNodeId].x, nodes[foldNodeId].y, COL_ORCHID, 34);
-      activateEdge(foldNodeId, apexNodeId, COL_MINT, 0.052);
-    }, 125);
-
-    setTimeout(() => {
-      if (!nodes[apexNodeId]) return;
-      nodes[apexNodeId].glow = 1.0;
-      const p = lf.bid / 10000;
-      const feeCc = Math.round(700 * (lf.qty / 100) * p * (1 - p));
-      const grossCc = Math.round(((lf.bid - lf.entry) * lf.qty) / 100);
-      const netCc = grossCc - feeCc;
-
-      lastStabilizeNs = customNs || (168 + Math.floor(rand() * 28));
-      lastTouched = 4;
-      nodes[apexNodeId].sub = `${lastStabilizeNs}ns · 4/${nodes.length}`;
-
-      if (netCc >= 250) {
-        totalHarvests++;
-        lf.entry = lf.bid;
-        spawnRing(nodes[apexNodeId].x, nodes[apexNodeId].y, COL_MINT, 54);
-        spawnFloatTag(
-          nodes[apexNodeId].x,
-          nodes[apexNodeId].y,
-          `HARVEST ${lf.tk} +$${(netCc / 10000).toFixed(2)}`,
-          COL_MINT
-        );
-      } else {
-        spawnRing(nodes[apexNodeId].x, nodes[apexNodeId].y, COL_MINT, 34);
+    cascadeQueue.push({
+      framesLeft: 3,
+      fn: () => {
+        if (!nodes[compNodeId]) return;
+        nodes[compNodeId].glow = 1.0;
+        activateEdge(compNodeId, foldNodeId, COL_ORCHID, 0.048);
       }
-    }, 195);
+    });
+
+    cascadeQueue.push({
+      framesLeft: 7,
+      fn: () => {
+        if (!nodes[foldNodeId]) return;
+        nodes[foldNodeId].glow = 1.0;
+        spawnRing(nodes[foldNodeId].x, nodes[foldNodeId].y, COL_ORCHID, 34);
+        activateEdge(foldNodeId, apexNodeId, COL_MINT, 0.052);
+      }
+    });
+
+    cascadeQueue.push({
+      framesLeft: 11,
+      fn: () => {
+        if (!nodes[apexNodeId]) return;
+        nodes[apexNodeId].glow = 1.0;
+        const p = lf.bid / 10000;
+        const feeCc = Math.round(700 * (lf.qty / 100) * p * (1 - p));
+        const grossCc = Math.round(((lf.bid - lf.entry) * lf.qty) / 100);
+        const netCc = grossCc - feeCc;
+
+        lastStabilizeNs = customNs || (168 + Math.floor(rand() * 28));
+        lastTouched = 4;
+        nodes[apexNodeId].sub = `${lastStabilizeNs}ns · 4/${nodes.length}`;
+
+        if (netCc >= 250) {
+          totalHarvests++;
+          lf.entry = lf.bid;
+          spawnRing(nodes[apexNodeId].x, nodes[apexNodeId].y, COL_MINT, 54);
+          spawnFloatTag(
+            nodes[apexNodeId].x,
+            nodes[apexNodeId].y,
+            `HARVEST ${lf.tk} +$${(netCc / 10000).toFixed(2)}`,
+            COL_MINT
+          );
+        } else {
+          spawnRing(nodes[apexNodeId].x, nodes[apexNodeId].y, COL_MINT, 34);
+        }
+      }
+    });
   }
 
   function stepOrganic() {
@@ -788,7 +803,90 @@ canvas#seiche-stage {
       ctx.fillText(ft.text, ft.x, ft.y);
       ctx.globalAlpha = 1;
     }
+
+    // 7. Process frame-counted cascade hops
+    for (let i = cascadeQueue.length - 1; i >= 0; i--) {
+      cascadeQueue[i].framesLeft--;
+      if (cascadeQueue[i].framesLeft <= 0) {
+        const item = cascadeQueue.splice(i, 1)[0];
+        item.fn();
+      }
+    }
+
+    // 8. Optional subtle chapter watermark (bottom-left, for HD walkthrough capture)
+    chapterAlpha += (chapterTargetAlpha - chapterAlpha) * 0.08;
+    if (chapterAlpha > 0.02 && chapterTitle) {
+      ctx.save();
+      ctx.textAlign = 'left';
+      ctx.font = '600 13px "IBM Plex Mono", monospace';
+      ctx.fillStyle = `rgba(0, 240, 255, ${chapterAlpha * 0.88})`;
+      ctx.fillText(chapterTitle, 28, h - 54);
+      if (chapterSub) {
+        ctx.font = '400 11px "IBM Plex Mono", monospace';
+        ctx.fillStyle = `rgba(226, 232, 240, ${chapterAlpha * 0.65})`;
+        ctx.fillText(chapterSub, 28, h - 36);
+      }
+      ctx.restore();
+    }
   }
+
+  // Expose deterministic walkthrough & frame-stepping controller for HD video recording
+  window.SEICHE = {
+    setAutoFlow(on) {
+      running = !!on;
+      liveSseConnected = false;
+    },
+    setChapter(title, sub) {
+      if (!title) {
+        chapterTargetAlpha = 0;
+      } else {
+        chapterTitle = title;
+        chapterSub = sub || '';
+        chapterTargetAlpha = 1;
+      }
+    },
+    hoverNode(id) {
+      hoveredNodeId = (typeof id === 'number') ? id : -1;
+    },
+    fireSingle(leafIdx, deltaCc, ticker) {
+      fireLeaf(leafIdx % 36, deltaCc, ticker);
+    },
+    fireOracleWave(fam, deltaCc) {
+      for (let k = 0; k < 6; k++) {
+        cascadeQueue.push({
+          framesLeft: k * 3,
+          fn: () => fireLeaf((fam % 6) * 6 + k, deltaCc || 220)
+        });
+      }
+    },
+    fireCutoffShower() {
+      for (let k = 0; k < 8; k++) {
+        cascadeQueue.push({
+          framesLeft: k * 4,
+          fn: () => fireLeaf((k * 5 + 2) % 36, (k % 2 === 0 ? 11 : -13))
+        });
+      }
+    },
+    fireWsGap(leafIdx, seqNum) {
+      totalGaps++;
+      const idx = leafIdx % 36;
+      const ln = nodes[6 + idx];
+      if (ln) {
+        ln.cutoffGlow = 1.0;
+        spawnRing(ln.x, ln.y, COL_CORAL, 40);
+        spawnFloatTag(ln.x, ln.y, `WS GAP #${seqNum} → HEALED`, COL_CORAL);
+      }
+    },
+    fireHarvestSpike(leafIdx, ticker, jumpCc) {
+      const idx = leafIdx % 36;
+      LEAVES[idx].entry = 4700;
+      LEAVES[idx].bid = 4700;
+      fireLeaf(idx, jumpCc || 1900, ticker || 'KXNHLGAME-FLA');
+    },
+    stepFrame(nowMs) {
+      render(nowMs);
+    }
+  };
 
   buildGraph();
   window.addEventListener('resize', buildGraph);
