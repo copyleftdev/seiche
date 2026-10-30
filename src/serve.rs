@@ -630,9 +630,9 @@ async fn ws_dag_loop(broker: Arc<SseBroker>, tickers_override: Option<String>) {
             }
             let harvest_fired = out_events.iter().any(|e| e.new_value > 0);
 
-            // Pace SSE emissions to <= 12 events/sec (>= 80ms gap) unless a harvest exit fired,
-            // so the browser UI never receives a 3,000-msg/sec firehose.
-            if !harvest_fired && last_ui_emit.elapsed() < Duration::from_millis(80) {
+            // Pace SSE emissions to <= 8 events/sec (>= 125ms gap) unconditionally,
+            // so the browser UI never receives an unthrottled firehose.
+            if last_ui_emit.elapsed() < Duration::from_millis(125) {
                 continue;
             }
             last_ui_emit = Instant::now();
