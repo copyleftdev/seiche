@@ -3,33 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>seiche — Incremental DAG &amp; VOPR Simulator for Kalshi Orderbooks</title>
-<meta name="description" content="184ns stabilization across 10,000 Kalshi contracts. 5.43M events/sec. Height-ordered incremental DAG, cutoff deadbands, idempotent delta algebra, and VOPR simulation testing in TigerStyle Rust.">
+<title>SEICHE // Kalshi VOPR &amp; Incremental DAG Observatory</title>
+<meta name="description" content="Interactive VOPR Deterministic Simulation Observatory for Seiche — 184ns incremental DAG propagation across Kalshi prediction-market orderbooks.">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;1,6..72,500&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
 :root {
-  --bg-abyss:     #05070b;
-  --bg-trench:    #090d14;
-  --bg-deck:      #0e1420;
-  --bg-elevated:  #131b2b;
-  --line-subtle:  #1b263b;
-  --line-bright:  #283856;
-  --fg-primary:   #e8eef7;
-  --fg-secondary: #a4b5d0;
-  --fg-muted:     #889bb8;
-  --cyan-wave:    #38bdf8;
-  --amber-gold:   #f59e0b;
-  --emerald-fill: #10b981;
-  --crimson-gap:  #f43f5e;
-  --violet-fold:  #a78bfa;
-  --font-display: 'Newsreader', Georgia, serif;
-  --font-sans:    'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono:    'IBM Plex Mono', monospace;
-  --ease-out:     cubic-bezier(0.16, 1, 0.3, 1);
+  --paper-bg:      #eef4f8;
+  --paper-panel:   #e1ebf2;
+  --paper-inset:   #d3e1ec;
+  --paper-card:    #f8fbfd;
+  --rule-ink:      #b8cad8;
+  --rule-strong:   #86a0b5;
+  --ink-primary:   #0f1c29;
+  --ink-secondary: #2e4358;
+  --ink-muted:     #49627a;
+  --cobalt:        #0052cc;
+  --vermilion:     #c93214;
+  --jade:          #067046;
+  --ochre:         #995400;
+  --plum:          #5e24b0;
+  --font-display:  'Newsreader', Georgia, serif;
+  --font-sans:     'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono:     'IBM Plex Mono', monospace;
 }
 
 *, *::before, *::after {
@@ -39,875 +38,640 @@
 }
 
 ::selection {
-  background: rgba(56, 189, 248, 0.24);
-  color: var(--fg-primary);
+  background: rgba(11, 79, 214, 0.16);
+  color: var(--ink-primary);
 }
 
-html {
+html, body {
+  height: 100%;
   font-size: 16px;
-  scroll-behavior: smooth;
-  background: var(--bg-abyss);
-  color: var(--fg-primary);
+  background: var(--paper-bg);
+  color: var(--ink-primary);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-bright) var(--bg-abyss);
 }
 
 body {
-  font-family: var(--font-sans);
-  background: var(--bg-abyss);
-  color: var(--fg-primary);
-  line-height: 1.65;
-  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-a:focus-visible, button:focus-visible, input:focus-visible {
-  outline: 2px solid var(--cyan-wave);
+button:focus-visible, input:focus-visible, a:focus-visible {
+  outline: 2px solid var(--cobalt);
   outline-offset: 2px;
 }
 
-.tabular {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
-/* ── Topbar ──────────────────────────────────────────────── */
-header.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 90;
-  background: rgba(5, 7, 11, 0.88);
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--line-subtle);
-}
-
-.topbar-inner {
-  max-width: 1380px;
-  margin: 0 auto;
-  padding: 0.85rem 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.5rem;
-}
-
-.brand {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-}
-
-.brand-mark {
-  font-family: var(--font-mono);
-  font-size: 1.05rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--fg-primary);
-}
-
-.brand-sub {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--fg-muted);
-}
-
-.nav-links {
-  display: flex;
-  align-items: center;
-  gap: 1.75rem;
-  list-style: none;
-  font-size: 0.875rem;
-  color: var(--fg-secondary);
-}
-
-.nav-links a:hover {
-  color: var(--fg-primary);
-}
-
-/* ── Main Shell ──────────────────────────────────────────── */
-.wrap {
-  max-width: 1380px;
-  margin: 0 auto;
-  padding: 0 2rem;
-}
-
-/* ── Hero & Headline ─────────────────────────────────────── */
-.hero-band {
-  padding: 4rem 0 2.5rem;
-  border-bottom: 1px solid var(--line-subtle);
-  background:
-    radial-gradient(ellipse 75% 50% at 50% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 100%);
-}
-
-.hero-grid {
-  display: grid;
-  grid-template-columns: 1.35fr 1fr;
-  gap: 3rem;
-  align-items: end;
-}
-
-h1.hero-title {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: clamp(2.75rem, 5.2vw, 4.75rem);
-  line-height: 1.02;
-  letter-spacing: -0.02em;
-  color: var(--fg-primary);
-}
-
-h1.hero-title em {
-  font-style: italic;
-  color: var(--cyan-wave);
-}
-
-.hero-lead {
-  margin-top: 1.25rem;
-  font-size: 1.0625rem;
-  color: var(--fg-secondary);
-  max-width: 66ch;
-}
-
-.hero-spec-strip {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1px;
-  background: var(--line-subtle);
-  border: 1px solid var(--line-subtle);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.spec-cell {
-  background: var(--bg-trench);
-  padding: 1rem 1.25rem;
-}
-
-.spec-val {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 1.45rem;
-  font-weight: 700;
-  color: var(--fg-primary);
-}
-
-.spec-val.cyan { color: var(--cyan-wave); }
-.spec-val.amber { color: var(--amber-gold); }
-.spec-val.emerald { color: var(--emerald-fill); }
-.spec-val.violet { color: var(--violet-fold); }
-
-.spec-caption {
-  font-size: 0.75rem;
-  color: var(--fg-secondary);
-  margin-top: 0.15rem;
-}
-
-/* ── VOPR Workbench (Interactive DST Canvas) ─────────────── */
-.workbench-section {
-  padding: 2.5rem 0 4rem;
-  border-bottom: 1px solid var(--line-subtle);
-}
-
-.workbench-bar {
+/* ── Top Instrument Header ────────────────────────────────── */
+.inst-header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.9rem 1.25rem;
-  background: var(--bg-trench);
-  border: 1px solid var(--line-subtle);
-  border-bottom: none;
-  border-radius: 12px 12px 0 0;
+  padding: 0.75rem 1.5rem;
+  background: var(--paper-panel);
+  border-bottom: 1px solid var(--rule-ink);
 }
 
-.control-cluster {
+.inst-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.inst-name {
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink-primary);
+}
+
+.inst-name em {
+  font-style: italic;
+  color: var(--cobalt);
+}
+
+.inst-tag {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--ink-secondary);
+}
+
+.inst-metrics-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.6rem;
+  gap: 1.25rem;
 }
 
-.ctrl-btn {
+.metric-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+
+.metric-chip .k {
+  color: var(--ink-muted);
+}
+
+.metric-chip .v {
+  font-weight: 700;
+  color: var(--ink-primary);
+}
+
+.metric-chip .v.cobalt { color: var(--cobalt); }
+.metric-chip .v.jade { color: var(--jade); }
+.metric-chip .v.vermilion { color: var(--vermilion); }
+.metric-chip .v.ochre { color: var(--ochre); }
+.metric-chip .v.plum { color: var(--plum); }
+
+.gh-link {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--cobalt);
+  text-decoration: none;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--cobalt);
+  border-radius: 5px;
+  background: var(--paper-card);
+}
+
+.gh-link:hover {
+  background: var(--cobalt);
+  color: var(--paper-card);
+}
+
+/* ── Fault & Scenario Command Strip ───────────────────────── */
+.cmd-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 1.5rem;
+  background: var(--paper-card);
+  border-bottom: 1px solid var(--rule-ink);
+}
+
+.btn-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inst-btn {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
   font-weight: 500;
-  padding: 0.48rem 0.85rem;
-  border-radius: 6px;
-  border: 1px solid var(--line-bright);
-  background: var(--bg-deck);
-  color: var(--fg-primary);
+  padding: 0.42rem 0.78rem;
+  border-radius: 5px;
+  border: 1px solid var(--rule-strong);
+  background: var(--paper-bg);
+  color: var(--ink-primary);
   cursor: pointer;
-  transition: background 0.15s var(--ease-out), border-color 0.15s var(--ease-out), transform 0.1s var(--ease-out);
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
 }
 
-.ctrl-btn:hover {
-  background: var(--bg-elevated);
-  border-color: var(--cyan-wave);
+.inst-btn:hover {
+  background: var(--paper-panel);
+  border-color: var(--ink-primary);
 }
 
-.ctrl-btn:active {
+.inst-btn:active {
   transform: translateY(1px);
 }
 
-.ctrl-btn.primary {
-  background: rgba(56, 189, 248, 0.14);
-  border-color: var(--cyan-wave);
-  color: var(--cyan-wave);
+.inst-btn.active-run {
+  background: var(--cobalt);
+  border-color: var(--cobalt);
+  color: #ffffff;
 }
 
-.ctrl-btn.amber {
-  background: rgba(245, 158, 11, 0.13);
-  border-color: rgba(245, 158, 11, 0.55);
-  color: var(--amber-gold);
+.inst-btn.shock-cobalt {
+  border-color: var(--cobalt);
+  color: var(--cobalt);
+  background: rgba(11, 79, 214, 0.06);
 }
 
-.ctrl-btn.crimson {
-  background: rgba(244, 63, 94, 0.13);
-  border-color: rgba(244, 63, 94, 0.55);
-  color: var(--crimson-gap);
+.inst-btn.shock-jade {
+  border-color: var(--jade);
+  color: var(--jade);
+  background: rgba(10, 114, 72, 0.07);
 }
 
-.seed-box {
+.inst-btn.shock-ochre {
+  border-color: var(--ochre);
+  color: var(--ochre);
+  background: rgba(158, 90, 0, 0.07);
+}
+
+.inst-btn.shock-vermilion {
+  border-color: var(--vermilion);
+  color: var(--vermilion);
+  background: rgba(201, 56, 24, 0.07);
+}
+
+.seed-control {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--fg-secondary);
-  background: var(--bg-abyss);
-  border: 1px solid var(--line-subtle);
-  padding: 0.3rem 0.65rem;
-  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--ink-secondary);
+  background: var(--paper-panel);
+  border: 1px solid var(--rule-ink);
+  padding: 0.28rem 0.65rem;
+  border-radius: 5px;
 }
 
 .seed-input {
-  width: 96px;
-  background: transparent;
+  width: 92px;
   border: none;
-  color: var(--cyan-wave);
+  background: transparent;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--cobalt);
 }
 
-.canvas-frame {
+/* ── Main Workbench Grid (Canvas + Inspector Drawer) ─────── */
+.workbench-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 370px;
+  min-height: 620px;
+  border-bottom: 1px solid var(--rule-ink);
+}
+
+.stage-col {
   position: relative;
-  background: #060911;
-  border: 1px solid var(--line-subtle);
-  height: 580px;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-bg);
+  border-right: 1px solid var(--rule-ink);
+  padding: 0.85rem;
+  gap: 0.85rem;
+}
+
+.canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 540px;
   width: 100%;
+  cursor: crosshair;
+  border: 1px solid var(--rule-ink);
+  border-radius: 8px;
+  background: var(--paper-card);
   overflow: hidden;
 }
 
-canvas#dag-canvas {
+canvas#seiche-canvas {
   width: 100%;
   height: 100%;
   display: block;
 }
 
-/* Telemetry Overlay */
-.hud-overlay {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  display: grid;
-  grid-template-columns: repeat(2, 152px);
-  gap: 0.5rem;
-  pointer-events: none;
-}
-
-.hud-tile {
-  background: rgba(9, 13, 20, 0.92);
-  border: 1px solid var(--line-subtle);
-  border-radius: 8px;
-  padding: 0.6rem 0.8rem;
-}
-
-.hud-key {
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  color: var(--fg-secondary);
-  display: block;
-}
-
-.hud-val {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--fg-primary);
-}
-
-/* Live Event Tape at bottom of canvas */
-.tape-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.65rem 1rem;
-  background: var(--bg-trench);
-  border: 1px solid var(--line-subtle);
-  border-top: none;
-  border-radius: 0 0 12px 12px;
-  overflow-x: auto;
-  min-height: 46px;
-}
-
-.tape-pill {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 0.8rem;
-  padding: 0.28rem 0.65rem;
-  border-radius: 5px;
-  background: var(--bg-deck);
-  border: 1px solid var(--line-subtle);
-  white-space: nowrap;
-  color: var(--fg-secondary);
-}
-
-.tape-pill.harvest {
-  border-color: rgba(16, 185, 129, 0.5);
-  color: var(--emerald-fill);
-  background: rgba(16, 185, 129, 0.08);
-}
-
-.tape-pill.cutoff {
-  border-color: rgba(245, 158, 11, 0.45);
-  color: var(--amber-gold);
-}
-
-.tape-pill.gap {
-  border-color: rgba(244, 63, 94, 0.5);
-  color: var(--crimson-gap);
-  background: rgba(244, 63, 94, 0.08);
-}
-
-/* ── Split Scoreboard: Seiche Event-Driven vs 60m Cron ───── */
-.scoreboard {
+/* Bottom Score & Tape Bar inside Stage */
+.stage-footer {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1px;
-  background: var(--line-subtle);
-  border: 1px solid var(--line-subtle);
-  border-radius: 10px;
+  background: var(--rule-ink);
+  border: 1px solid var(--rule-ink);
+  border-radius: 8px;
   overflow: hidden;
-  margin-top: 1.25rem;
 }
 
-.score-pane {
-  background: var(--bg-trench);
-  padding: 1.1rem 1.35rem;
-}
-
-.score-title {
-  font-size: 0.78rem;
-  color: var(--fg-secondary);
-}
-
-.score-num {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-top: 0.25rem;
-}
-
-.score-sub {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: var(--fg-muted);
-  margin-top: 0.2rem;
-}
-
-/* ── Editorial Technical Sections ────────────────────────── */
-.section-block {
-  padding: 5rem 0;
-  border-bottom: 1px solid var(--line-subtle);
-}
-
-.section-header {
-  max-width: 68ch;
-  margin-bottom: 2.5rem;
-}
-
-h2.section-title {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: clamp(2rem, 3.6vw, 3rem);
-  line-height: 1.1;
-  color: var(--fg-primary);
-  margin-bottom: 0.85rem;
-}
-
-.section-header p {
-  color: var(--fg-secondary);
-  font-size: 1rem;
-}
-
-/* Comparison Table */
-.compare-table-wrap {
-  border: 1px solid var(--line-subtle);
-  border-radius: 10px;
-  overflow-x: auto;
-  background: var(--bg-trench);
+.stage-stat {
+  background: var(--paper-card);
   padding: 0.75rem 1rem;
 }
 
-table.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
+.stage-stat-label {
+  font-size: 0.82rem;
+  color: var(--ink-secondary);
 }
 
-table.data-table th,
-table.data-table td {
-  padding: 0.95rem 1.25rem;
-  text-align: left;
-  border-bottom: 1px solid var(--line-subtle);
-}
-
-table.data-table th {
+.stage-stat-val {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--fg-secondary);
-  background: var(--bg-deck);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-top: 0.15rem;
 }
 
-table.data-table tr:last-child td {
-  border-bottom: none;
-}
-
-/* Code & Algebraic Laws Two-Column */
-.dual-grid {
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 2rem;
-  align-items: start;
-}
-
-.code-panel {
-  background: var(--bg-trench);
-  border: 1px solid var(--line-subtle);
-  border-radius: 10px;
-  padding: 1.5rem;
-  overflow-x: auto;
-}
-
-.code-panel pre {
+.stage-stat-sub {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
-  line-height: 1.75;
-  color: var(--fg-primary);
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  margin-top: 0.1rem;
 }
 
-.kw { color: var(--cyan-wave); }
-.ty { color: var(--amber-gold); }
-.cm { color: var(--fg-muted); font-style: italic; }
-.fn { color: var(--emerald-fill); }
-
-.law-list {
-  display: grid;
-  gap: 0.85rem;
-}
-
-.law-row {
-  background: var(--bg-trench);
-  border: 1px solid var(--line-subtle);
-  border-radius: 8px;
-  padding: 0.95rem 1.2rem;
+/* Right Inspector Column */
+.inspector-col {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  background: var(--paper-panel);
 }
 
-.law-title {
-  font-size: 0.82rem;
+.inspector-box {
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid var(--rule-ink);
+  background: var(--paper-card);
+}
+
+.inspector-heading {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
   font-weight: 600;
-  color: var(--fg-secondary);
+  color: var(--ink-primary);
+  margin-bottom: 0.5rem;
 }
 
-.law-expr {
+.inspector-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.insp-kv {
+  background: var(--paper-bg);
+  border: 1px solid var(--rule-ink);
+  border-radius: 5px;
+  padding: 0.45rem 0.65rem;
+}
+
+.insp-k {
   font-family: var(--font-mono);
-  font-size: 0.84rem;
-  color: var(--cyan-wave);
+  font-size: 0.76rem;
+  color: var(--ink-muted);
+  display: block;
 }
 
-footer.site-footer {
-  padding: 3rem 0;
-  color: var(--fg-secondary);
-  font-size: 0.85rem;
+.insp-v {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ink-primary);
 }
 
-.footer-inner {
+/* Fee Curve Mini-Canvas */
+.curve-box {
+  padding: 0.85rem 1.15rem;
+  border-bottom: 1px solid var(--rule-ink);
+  background: var(--paper-panel);
+}
+
+.curve-caption {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--ink-secondary);
+  margin-bottom: 0.4rem;
+}
+
+canvas#fee-canvas {
+  width: 100%;
+  height: 92px;
+  display: block;
+  background: var(--paper-card);
+  border: 1px solid var(--rule-ink);
+  border-radius: 5px;
+}
+
+/* Live Event Stream Feed */
+.stream-box {
+  flex: 1;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
+  flex-direction: column;
+  padding: 0.85rem 1.15rem;
+  overflow: hidden;
 }
 
-@media (max-width: 960px) {
-  .hero-grid,
-  .dual-grid {
+.stream-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  overflow-y: auto;
+  max-height: 290px;
+}
+
+.stream-item {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  padding: 0.45rem 0.65rem;
+  border-radius: 5px;
+  background: var(--paper-card);
+  border: 1px solid var(--rule-ink);
+  color: var(--ink-secondary);
+}
+
+.stream-item.harvest {
+  border-color: var(--jade);
+  color: var(--jade);
+  background: rgba(10, 114, 72, 0.06);
+}
+
+.stream-item.cutoff {
+  border-color: var(--ochre);
+  color: var(--ochre);
+  background: rgba(158, 90, 0, 0.06);
+}
+
+.stream-item.gap {
+  border-color: var(--vermilion);
+  color: var(--vermilion);
+  background: rgba(201, 56, 24, 0.06);
+}
+
+@media (max-width: 1080px) {
+  .workbench-grid {
     grid-template-columns: 1fr;
   }
-  .scoreboard {
+  .stage-col {
+    border-right: none;
+    border-bottom: 1px solid var(--rule-ink);
+  }
+  .stage-footer {
     grid-template-columns: repeat(2, 1fr);
   }
-  .hud-overlay {
-    position: static;
-    grid-template-columns: repeat(4, 1fr);
-    padding: 0.75rem;
-    background: var(--bg-trench);
-  }
-  .canvas-frame {
-    height: 500px;
-  }
 }
 
-@media (max-width: 600px) {
-  .scoreboard,
-  .hero-spec-strip,
-  .hud-overlay {
+@media (max-width: 640px) {
+  .stage-footer {
     grid-template-columns: 1fr;
-  }
-  .nav-links {
-    display: none;
   }
 }
 </style>
 </head>
 <body>
 
-<header class="topbar">
-  <div class="topbar-inner">
-    <div class="brand">
-      <a href="#" class="brand-mark">seiche</a>
-      <span class="brand-sub">v0.1.0 · TigerStyle Rust DAG + VOPR</span>
+<!-- ── Top Instrument Bar ──────────────────────────────────── -->
+<header class="inst-header">
+  <div class="inst-title-group">
+    <div class="inst-name">seiche <em>vopr observatory</em></div>
+    <span class="inst-tag">Kalshi Incremental DAG · Click any node to shock or inspect</span>
+  </div>
+
+  <div class="inst-metrics-bar">
+    <div class="metric-chip">
+      <span class="k">stabilize:</span>
+      <span id="top-ns" class="v cobalt">184 ns</span>
     </div>
-    <ul class="nav-links">
-      <li><a href="#workbench">Live VOPR DAG</a></li>
-      <li><a href="#falsification">Kalshi Counterfactuals</a></li>
-      <li><a href="#algebra">Delta Algebra &amp; Proofs</a></li>
-      <li><a href="https://github.com/copyleftdev/seiche">GitHub (copyleftdev/seiche)</a></li>
-    </ul>
+    <div class="metric-chip">
+      <span class="k">touched:</span>
+      <span id="top-recomp" class="v plum">4 / 48</span>
+    </div>
+    <div class="metric-chip">
+      <span class="k">cutoff killed:</span>
+      <span id="top-cutoff" class="v ochre">0</span>
+    </div>
+    <div class="metric-chip">
+      <span class="k">ws seq:</span>
+      <span id="top-seq" class="v jade">#1 (0 healed)</span>
+    </div>
+    <div class="metric-chip">
+      <span class="k">state hash:</span>
+      <span id="top-hash" class="v">0x27258132</span>
+    </div>
+    <a href="https://github.com/copyleftdev/seiche" class="gh-link">copyleftdev/seiche</a>
   </div>
 </header>
 
-<main>
-  <!-- ── Hero ──────────────────────────────────────────────── -->
-  <section class="hero-band">
-    <div class="wrap">
-      <div class="hero-grid">
-        <div>
-          <h1 class="hero-title">
-            Standing-wave propagation for <em>bounded</em> prediction markets.
-          </h1>
-          <p class="hero-lead">
-            Cron-polled trading loops recompute all 15,940 Kalshi contracts on a timer and still miss 4-minute intra-hour bid spikes. <strong>seiche</strong> wires external anchors (Pyth Gold/FX, NWS station telemetry, sportsbook consensus) into a topological height min-heap in integer centicents: when one leaf ticks, 3 nodes stabilize in <strong>184 nanoseconds</strong>, sub-cent noise dies at the cutoff gate, and output deltas flush atomically.
-          </p>
-        </div>
-
-        <div class="hero-spec-strip">
-          <div class="spec-cell">
-            <div class="spec-val cyan">184 ns</div>
-            <div class="spec-caption">Stabilization latency (10K symbols / 20,001 nodes)</div>
-          </div>
-          <div class="spec-cell">
-            <div class="spec-val emerald">5.43M / s</div>
-            <div class="spec-caption">Single-core incremental event throughput</div>
-          </div>
-          <div class="spec-cell">
-            <div class="spec-val amber">3 / 20,001</div>
-            <div class="spec-caption">Nodes recomputed per tick — O(changed), never O(N)</div>
-          </div>
-          <div class="spec-cell">
-            <div class="spec-val violet">0x27258132</div>
-            <div class="spec-caption">Deterministic VOPR campaign hash (24,000 steps)</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Interactive Kalshi VOPR DAG Workbench ─────────────── -->
-  <section id="workbench" class="workbench-section">
-    <div class="wrap">
-      <div class="workbench-bar">
-        <div class="control-cluster">
-          <button type="button" id="btn-play" class="ctrl-btn primary">Pause Stream</button>
-          <button type="button" id="btn-step" class="ctrl-btn">Step Tick (+1)</button>
-          <button type="button" id="btn-pyth" class="ctrl-btn">Shock Pyth XAU (+$14.20)</button>
-          <button type="button" id="btn-nws" class="ctrl-btn">NWS KORD Gust (+2.0°F)</button>
-          <button type="button" id="btn-noise" class="ctrl-btn amber">Inject ±0.15¢ Noise (Cutoff)</button>
-          <button type="button" id="btn-gap" class="ctrl-btn crimson">Inject WS Seq Gap</button>
-          <button type="button" id="btn-spike" class="ctrl-btn">Intra-Hour Bid Spike (FLAOTT 66¢)</button>
-        </div>
-
-        <div class="seed-box">
-          <label for="seed-input">VOPR SEED</label>
-          <input id="seed-input" class="seed-input" type="number" value="20261029" aria-label="VOPR PRNG Seed">
-          <button type="button" id="btn-reseed" class="ctrl-btn" style="padding:0.25rem 0.55rem;">Reset</button>
-        </div>
-      </div>
-
-      <div class="canvas-frame">
-        <canvas id="dag-canvas"></canvas>
-
-        <div class="hud-overlay">
-          <div class="hud-tile">
-            <span class="hud-key">stabilization</span>
-            <span id="hud-ns" class="hud-val" style="color:var(--cyan-wave);">184 ns</span>
-          </div>
-          <div class="hud-tile">
-            <span class="hud-key">nodes touched</span>
-            <span id="hud-recomp" class="hud-val" style="color:var(--violet-fold);">3 / 44</span>
-          </div>
-          <div class="hud-tile">
-            <span class="hud-key">cutoff suppressed</span>
-            <span id="hud-cutoff" class="hud-val" style="color:var(--amber-gold);">0</span>
-          </div>
-          <div class="hud-tile">
-            <span class="hud-key">ws seq / gaps healed</span>
-            <span id="hud-seq" class="hud-val" style="color:var(--emerald-fill);">#1 (0)</span>
-          </div>
-        </div>
-      </div>
-
-      <div id="tape-bar" class="tape-bar" aria-live="polite"></div>
-
-      <div class="scoreboard">
-        <div class="score-pane">
-          <div class="score-title">Traditional 60m Batch Poll Recomputes</div>
-          <div id="score-trad-nodes" class="score-num" style="color:var(--crimson-gap);">44 / 44 nodes</div>
-          <div class="score-sub">Full-book scan every sweep regardless of change</div>
-        </div>
-        <div class="score-pane">
-          <div class="score-title">Seiche Height-Heap Recomputes</div>
-          <div id="score-seiche-nodes" class="score-num" style="color:var(--cyan-wave);">3 / 44 nodes</div>
-          <div class="score-sub">Packed u64 (height &lt;&lt; 32 | node_id) min-heap</div>
-        </div>
-        <div class="score-pane">
-          <div class="score-title">Seiche Event-Driven Harvest Exits</div>
-          <div id="score-seiche-exits" class="score-num" style="color:var(--emerald-fill);">0 exits ($0.00)</div>
-          <div class="score-sub">Fires the microsecond bid clears cost + fee + 50cc</div>
-        </div>
-        <div class="score-pane">
-          <div class="score-title">Hourly Cron (60m) Harvest Exits</div>
-          <div id="score-cron-exits" class="score-num" style="color:var(--fg-secondary);">0 exits ($0.00)</div>
-          <div class="score-sub">Misses intra-hour spikes that fade before :00</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Empirical Kalshi Counterfactuals & Benchmarks ─────── -->
-  <section id="falsification" class="section-block">
-    <div class="wrap">
-      <div class="section-header">
-        <h2 class="section-title">Measured against live Kalshi tape &amp; OCaml Ripple.</h2>
-        <p>
-          Every mechanism in <code>seiche</code> is anchored to real settled contracts (`KXGOLDH`, `KXINXU`, `KXEURUSD`, `KXHIGHCHI`, `KXNHLGAME`) and exact centicent fee arithmetic (`0.07 × C × P × (1 − P)`).
-        </p>
-      </div>
-
-      <div class="compare-table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Metric / Verification Gate</th>
-              <th>60m Python Cron Loop</th>
-              <th>OCaml Ripple (10K Symbols)</th>
-              <th>Rust Seiche v0.1.0 (10K Symbols)</th>
-            </tr>
-          </thead>
-          <tbody class="tabular">
-            <tr>
-              <td>Stabilization Latency (10,000 symbols / 20,001 nodes)</td>
-              <td style="color:var(--fg-muted);">~420,000,000 ns (REST batch)</td>
-              <td>250 ns</td>
-              <td style="color:var(--cyan-wave);font-weight:600;">184 ns</td>
-            </tr>
-            <tr>
-              <td>Sustained Single-Core Event Throughput</td>
-              <td style="color:var(--fg-muted);">~20 req / sec (rate-limited)</td>
-              <td>2.16M events / sec</td>
-              <td style="color:var(--emerald-fill);font-weight:600;">5.43M events / sec</td>
-            </tr>
-            <tr>
-              <td>Nodes Recomputed on Single Strike Tick</td>
-              <td style="color:var(--crimson-gap);">100% (Full series rescan)</td>
-              <td>3 / 20,001 (Incr_fold)</td>
-              <td style="color:var(--emerald-fill);font-weight:600;">3.00 / 20,001 (IncrFoldSum)</td>
-            </tr>
-            <tr>
-              <td>100-Seed VOPR Harvest Campaign (32 symbols × 240 steps)</td>
-              <td>1,026 exits (-$4,047.46)</td>
-              <td style="color:var(--fg-muted);">N/A (generic VWAP)</td>
-              <td style="color:var(--emerald-fill);font-weight:600;">1,303 exits (+$543.30 edge over cron)</td>
-            </tr>
-            <tr>
-              <td>Live Kalshi Taker Fee Anchor (5 ct @ 92.00¢)</td>
-              <td>Float approximation</td>
-              <td style="color:var(--fg-muted);">Float f64</td>
-              <td style="color:var(--amber-gold);font-weight:600;">Exact 258 cc ($0.0258, i128 verified)</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Delta Algebra & TigerStyle Invariants ─────────────── -->
-  <section id="algebra" class="section-block">
-    <div class="wrap">
-      <div class="section-header">
-        <h2 class="section-title">Algebraic quote deltas &amp; TigerStyle invariants.</h2>
-        <p>
-          In prediction-market orderbooks, duplicate WebSocket frames and rapid oracle wiggles cause naive bots to double-place or 429-ban themselves. <code>seiche</code> enforces six algebraic delta identities across 2,020 exhaustive state-transition combinations (`seiche prove --json`).
-        </p>
-      </div>
-
-      <div class="dual-grid">
-        <div class="code-panel">
-<pre><code><span class="cm">// Packed (height: u16, node_id: u32) -> single u64 CPU comparison (Guarantee S3)</span>
-<span class="kw">impl</span> <span class="ty">HeapEntry</span> {
-    <span class="kw">pub const fn</span> <span class="fn">pack</span>(height: <span class="ty">u16</span>, node_id: <span class="ty">u32</span>) -&gt; <span class="ty">u64</span> {
-        ((height <span class="kw">as</span> <span class="ty">u64</span>) &lt;&lt; 32) | (node_id <span class="kw">as</span> <span class="ty">u64</span>)
-    }
-}
-
-<span class="cm">// Exact integer Kalshi quadratic taker fee in centicents ($1.00 = 10_000 cc)</span>
-<span class="kw">pub const fn</span> <span class="fn">kalshi_taker_fee_cc</span>(qty_h: <span class="ty">i64</span>, price_cc: <span class="ty">i64</span>) -&gt; <span class="ty">i64</span> {
-    <span class="kw">let</span> num = 7i128 * (qty_h <span class="kw">as</span> <span class="ty">i128</span>) * (price_cc <span class="kw">as</span> <span class="ty">i128</span>)
-              * ((10_000 - price_cc) <span class="kw">as</span> <span class="ty">i128</span>);
-    ((num + 50_000_000) / 100_000_000) <span class="kw">as</span> <span class="ty">i64</span>
-}
-
-<span class="cm">// O(changed_parents) incremental fold inside Graph::stabilize()</span>
-<span class="kw">for</span> (idx, curr_v) <span class="kw">in</span> updates {
-    <span class="kw">let</span> prev_v = parent_values[idx];
-    acc = acc.<span class="fn">saturating_sub</span>(prev_v).<span class="fn">saturating_add</span>(curr_v);
-    parent_values[idx] = curr_v;
-}</code></pre>
-        </div>
-
-        <div class="law-list">
-          <div class="law-row">
-            <span class="law-title">Idempotence (Duplicate WebSocket / RPC Retry Safe)</span>
-            <code class="law-expr">d.apply(d.apply(quote_state)) == d.apply(quote_state)</code>
-          </div>
-          <div class="law-row">
-            <span class="law-title">Exact Diff-Apply Roundtrip</span>
-            <code class="law-expr">Delta::diff(old_quote, new_quote).apply(old_quote) == new_quote</code>
-          </div>
-          <div class="law-row">
-            <span class="law-title">Sequential Composition Compatibility (S4 Batching)</span>
-            <code class="law-expr">d1.compose(d2).apply(s) == d2.apply(d1.apply(s))</code>
-          </div>
-          <div class="law-row">
-            <span class="law-title">Right Annihilation on Cancel (`Remove`)</span>
-            <code class="law-expr">any_delta.compose(Delta::Remove) == Delta::Remove</code>
-          </div>
-          <div class="law-row">
-            <span class="law-title">Differential Fold Invariant (I-5 Checked Every Tick)</span>
-            <code class="law-expr">graph.watch(incr_fold_sum) == graph.watch(full_fold_sum)</code>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-</main>
-
-<footer class="site-footer">
-  <div class="wrap footer-inner">
-    <div>seiche v0.1.0 · MIT License · Built in TigerStyle Rust for the Kalshi Quant Stack</div>
-    <div class="tabular">CLI: <code>seiche bench</code> · <code>seiche sim</code> · <code>seiche shadow</code> · <code>seiche prove</code></div>
+<!-- ── Fault & Scenario Command Bar ────────────────────────── -->
+<section class="cmd-strip" aria-label="Simulation Controls">
+  <div class="btn-group">
+    <button type="button" id="btn-play" class="inst-btn active-run">Pause Stream</button>
+    <button type="button" id="btn-step" class="inst-btn">Step (+1 Tick)</button>
+    <button type="button" id="btn-pyth" class="inst-btn shock-cobalt">Pyth XAU Surge (+$14.20)</button>
+    <button type="button" id="btn-nws" class="inst-btn shock-cobalt">NWS KORD Gust (+2.0°F)</button>
+    <button type="button" id="btn-spike" class="inst-btn shock-jade">FLAOTT 66¢ Intra-Hour Spike</button>
+    <button type="button" id="btn-noise" class="inst-btn shock-ochre">±0.14¢ Micro-Noise (Cutoff Gate)</button>
+    <button type="button" id="btn-gap" class="inst-btn shock-vermilion">Drop WS Frame (Seq Gap)</button>
+    <button type="button" id="btn-storm" class="inst-btn shock-vermilion">20-Tick Volatility Burst</button>
   </div>
-</footer>
+
+  <div class="seed-control">
+    <label for="seed-input">SEED</label>
+    <input id="seed-input" class="seed-input" type="number" value="20261029">
+    <button type="button" id="btn-reseed" class="inst-btn" style="padding:0.2rem 0.55rem;">Replay Seed</button>
+  </div>
+</section>
+
+<!-- ── Main Observatory Stage + Node Inspector ─────────────── -->
+<main class="workbench-grid">
+  <div class="stage-col">
+    <div class="canvas-wrap">
+      <canvas id="seiche-canvas"></canvas>
+    </div>
+
+    <div class="stage-footer">
+      <div class="stage-stat">
+        <div class="stage-stat-label">60m Batch Cron Recomputes</div>
+        <div id="stat-trad" class="stage-stat-val" style="color:var(--vermilion);">48 / 48 nodes (100%)</div>
+        <div class="stage-stat-sub">Scans entire series on a blind timer</div>
+      </div>
+      <div class="stage-stat">
+        <div class="stage-stat-label">Seiche Height-Heap Recomputes</div>
+        <div id="stat-seiche" class="stage-stat-val" style="color:var(--cobalt);">4 / 48 nodes (8.3%)</div>
+        <div class="stage-stat-sub">Packed u64 (height &lt;&lt; 32 | node_id) min-heap</div>
+      </div>
+      <div class="stage-stat">
+        <div class="stage-stat-label">Seiche Event-Driven Harvests</div>
+        <div id="stat-seiche-pnl" class="stage-stat-val" style="color:var(--jade);">0 exits (+$0.00)</div>
+        <div class="stage-stat-sub">Fires the instant bid clears entry + fee + 50cc</div>
+      </div>
+      <div class="stage-stat">
+        <div class="stage-stat-label">60m Hourly Cron Harvests</div>
+        <div id="stat-cron-pnl" class="stage-stat-val" style="color:var(--ink-secondary);">0 exits (+$0.00)</div>
+        <div class="stage-stat-sub">Misses intra-hour spikes that fade before :00</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Live Node Inspector & Algebraic Stream -->
+  <aside class="inspector-col">
+    <div class="inspector-box">
+      <h2 id="insp-title" class="inspector-heading">KXNHLGAME-FLA (Click any node)</h2>
+      <p id="insp-desc" style="font-size:0.86rem;color:var(--ink-secondary);">
+        Height-1 Kalshi contract leaf guarded by <code>Cutoff::Band(25cc)</code>. Click any oracle or contract node on the canvas to inject a shock and inspect its live centicent math.
+      </p>
+      <div class="inspector-grid">
+        <div class="insp-kv">
+          <span class="insp-k">Live Bid / Entry</span>
+          <span id="insp-bid" class="insp-v" style="color:var(--cobalt);">47.00¢ / 47.00¢</span>
+        </div>
+        <div class="insp-kv">
+          <span class="insp-k">Taker Fee (5 ct)</span>
+          <span id="insp-fee" class="insp-v" style="color:var(--vermilion);">872 cc ($0.0872)</span>
+        </div>
+        <div class="insp-kv">
+          <span class="insp-k">Harvest Target</span>
+          <span id="insp-target" class="insp-v" style="color:var(--jade);">49.24¢ (+50cc net)</span>
+        </div>
+        <div class="insp-kv">
+          <span class="insp-k">Last Delta</span>
+          <span id="insp-delta" class="insp-v" style="color:var(--plum);">Patch(price_cc)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="curve-box">
+      <div class="curve-caption">Kalshi Parabolic Taker Fee: 0.07 × C × P × (1 − P)</div>
+      <canvas id="fee-canvas"></canvas>
+    </div>
+
+    <div class="stream-box">
+      <div class="curve-caption">Stabilization &amp; Algebraic Delta Tape (S4 Batched)</div>
+      <div id="stream-list" class="stream-list" aria-live="polite"></div>
+    </div>
+  </aside>
+</main>
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════
-// SEICHE VOPR INTERACTIVE DAG SIMULATOR
-// Deterministic SplitMix64 PRNG + 5-Layer Kalshi Incremental Graph:
-//   Height 0: External Oracles (Pyth XAU/USD, Swissquote EUR/USD, Yahoo SPX, NWS KORD, Pinnacle NHL/NFL)
-//   Height 1: 18 Live Kalshi Strike Leaves + Cutoff::Band(25cc) Deadband Gate
-//   Height 2: 18 MakerQuote & HarvestTrigger Compute Nodes (Exact Quadratic Taker Fee)
-//   Height 3: 4 Mutually-Exclusive Series IncrFoldSum Nodes (O(changed) add/remove)
-//   Height 4: 2 Terminal Output Nodes (Portfolio Kelly Exposure + Algebraic Delta Batch)
+// SEICHE HYDROGRAPHIC VOPR ENGINE
+// Warm drafting-paper bathygraph aesthetic + interactive node clicking +
+// standing-wave concentric seiche rings + live parabolic fee curve plotter
 // ═══════════════════════════════════════════════════════════════════════════
 (function() {
-  const canvas = document.getElementById('dag-canvas');
+  const canvas = document.getElementById('seiche-canvas');
   const ctx = canvas.getContext('2d');
+  const feeCanvas = document.getElementById('fee-canvas');
+  const fctx = feeCanvas.getContext('2d');
 
-  // Seeded SplitMix64 (32-bit safe JS port for deterministic browser replay)
+  // Palette constants matching hydrographic slate-cyan CSS variables
+  const INK_DARK   = '#0f1c29';
+  const INK_MID    = '#2e4358';
+  const INK_MUTED  = '#49627a';
+  const RULE_LINE  = '#b8cad8';
+  const COBALT     = '#0052cc';
+  const VERMILION  = '#c93214';
+  const JADE       = '#067046';
+  const OCHRE      = '#995400';
+  const PLUM       = '#5e24b0';
+
+  // Deterministic SplitMix64 (32-bit JS port)
   let prngState = 20261029 >>> 0;
+  let stateHash = 0x27258132 >>> 0;
   function seedPrng(s) {
     prngState = (s >>> 0) || 1;
+    stateHash = (s ^ 0x27258132) >>> 0;
   }
   function nextRand() {
     prngState = (prngState + 0x9e3779b9) >>> 0;
     let z = prngState;
     z = Math.imul(z ^ (z >>> 16), 0x85ebca6b) >>> 0;
     z = Math.imul(z ^ (z >>> 13), 0xc2b2ae35) >>> 0;
-    return ((z ^ (z >>> 16)) >>> 0) / 4294967296;
+    const out = (z ^ (z >>> 16)) >>> 0;
+    stateHash = Math.imul(stateHash ^ out, 0x01000193) >>> 0;
+    return out / 4294967296;
   }
 
   const ORACLES = [
-    { name: 'PYTH:XAU/USD', val: '4025.54', family: 0 },
-    { name: 'ICE:EUR/USD',  val: '1.1142',  family: 0 },
-    { name: 'YAHOO:^GSPC',  val: '7736.83', family: 1 },
-    { name: 'NWS:KORD/CHI', val: '71.4°F',  family: 2 },
-    { name: 'PINNACLE:NHL', val: 'ANA +128',family: 3 },
-    { name: 'FANDUEL:NFL',  val: 'GB -380', family: 3 }
+    { name: 'PYTH:XAU/USD', val: '$4,025.54', family: 0 },
+    { name: 'ICE:EUR/USD',  val: '1.1142',    family: 0 },
+    { name: 'YAHOO:^GSPC',  val: '7,736.83',  family: 1 },
+    { name: 'NWS:KORD/CHI', val: '71.4°F',    family: 2 },
+    { name: 'PINNACLE:NHL', val: 'ANA +128',  family: 3 },
+    { name: 'FANDUEL:NFL',  val: 'GB -380',   family: 3 }
   ];
 
   const STRIKES = [
-    { tk: 'KXGOLDH-T4039',  ora: 0, fam: 0, bid: 9200, entry: 9000 },
-    { tk: 'KXGOLDH-T4041',  ora: 0, fam: 0, bid: 9100, entry: 8900 },
-    { tk: 'KXGOLDH-T4035',  ora: 0, fam: 0, bid: 9300, entry: 9100 },
-    { tk: 'KXEURUSD-B1.111',ora: 1, fam: 0, bid: 9200, entry: 9000 },
-    { tk: 'KXEURUSD-B1.117',ora: 1, fam: 0, bid: 8800, entry: 8600 },
-    { tk: 'KXINXU-H1500',   ora: 2, fam: 1, bid: 9300, entry: 9100 },
-    { tk: 'KXINXU-H1600',   ora: 2, fam: 1, bid: 9100, entry: 8900 },
-    { tk: 'KXINXU-H1700',   ora: 2, fam: 1, bid: 8900, entry: 8700 },
-    { tk: 'KXHIGHCHI-B72.5',ora: 3, fam: 2, bid: 8700, entry: 8500 },
-    { tk: 'KXHIGHCHI-B74.5',ora: 3, fam: 2, bid: 9100, entry: 8900 },
-    { tk: 'KXHIGHTSEA-B56', ora: 3, fam: 2, bid: 8600, entry: 8400 },
-    { tk: 'KXHIGHDEN-B68',  ora: 3, fam: 2, bid: 8900, entry: 8700 },
-    { tk: 'KXNHLGAME-ANA',  ora: 4, fam: 3, bid: 4300, entry: 4200 },
-    { tk: 'KXNHLGAME-FLA',  ora: 4, fam: 3, bid: 4700, entry: 4700 },
-    { tk: 'KXNHLGAME-NSH',  ora: 4, fam: 3, bid: 3800, entry: 3800 },
-    { tk: 'KXNHLGAME-BOS',  ora: 4, fam: 3, bid: 4700, entry: 4500 },
-    { tk: 'KXNFLGAME-CAR',  ora: 5, fam: 3, bid: 3400, entry: 3200 },
-    { tk: 'KXNFLGAME-GB',   ora: 5, fam: 3, bid: 6600, entry: 6400 }
+    { tk: 'KXGOLDH-T4039',  ora: 0, fam: 0, bid: 9200, entry: 9000, qty: 500 },
+    { tk: 'KXGOLDH-T4041',  ora: 0, fam: 0, bid: 9100, entry: 8900, qty: 500 },
+    { tk: 'KXGOLDH-T4035',  ora: 0, fam: 0, bid: 9300, entry: 9100, qty: 500 },
+    { tk: 'KXEURUSD-B1.111',ora: 1, fam: 0, bid: 9200, entry: 9000, qty: 500 },
+    { tk: 'KXEURUSD-B1.117',ora: 1, fam: 0, bid: 8800, entry: 8600, qty: 500 },
+    { tk: 'KXINXU-H1500',   ora: 2, fam: 1, bid: 9300, entry: 9100, qty: 500 },
+    { tk: 'KXINXU-H1600',   ora: 2, fam: 1, bid: 9100, entry: 8900, qty: 500 },
+    { tk: 'KXINXU-H1700',   ora: 2, fam: 1, bid: 8900, entry: 8700, qty: 500 },
+    { tk: 'KXHIGHCHI-B72.5',ora: 3, fam: 2, bid: 8700, entry: 8500, qty: 1100 },
+    { tk: 'KXHIGHCHI-B74.5',ora: 3, fam: 2, bid: 9100, entry: 8900, qty: 1100 },
+    { tk: 'KXHIGHTSEA-B56', ora: 3, fam: 2, bid: 8600, entry: 8400, qty: 1100 },
+    { tk: 'KXHIGHDEN-B68',  ora: 3, fam: 2, bid: 8900, entry: 8700, qty: 1100 },
+    { tk: 'KXNHLGAME-ANA',  ora: 4, fam: 3, bid: 4300, entry: 4200, qty: 500 },
+    { tk: 'KXNHLGAME-FLA',  ora: 4, fam: 3, bid: 4700, entry: 4700, qty: 410 },
+    { tk: 'KXNHLGAME-NSH',  ora: 4, fam: 3, bid: 3800, entry: 3800, qty: 500 },
+    { tk: 'KXNHLGAME-BOS',  ora: 4, fam: 3, bid: 4700, entry: 4500, qty: 600 },
+    { tk: 'KXNFLGAME-CAR',  ora: 5, fam: 3, bid: 3400, entry: 3200, qty: 1000 },
+    { tk: 'KXNFLGAME-GB',   ora: 5, fam: 3, bid: 6600, entry: 6400, qty: 1000 }
   ];
 
   const FOLDS = [
-    'FOLD:METALS_FX',
-    'FOLD:SPX_INDEX',
-    'FOLD:WX_METROS',
-    'FOLD:SPORTS_BOOK'
+    { name: 'INCR_FOLD:METALS_FX', sumCc: 45600 },
+    { name: 'INCR_FOLD:SPX_INDEX', sumCc: 27300 },
+    { name: 'INCR_FOLD:WX_METROS', sumCc: 35300 },
+    { name: 'INCR_FOLD:SPORTS',    sumCc: 27500 }
   ];
 
   const OUTPUTS = [
-    'OUT:KELLY_BASKET_CC',
-    'OUT:ORDER_DELTA_BATCH'
+    { name: 'OUT:KELLY_BASKET_CC', sub: '13% Cap · $15 Floor' },
+    { name: 'OUT:DELTA_BATCH_S4',  sub: 'Set / Patch / Remove' }
   ];
 
   const nodes = [];
   const edges = [];
   const particles = [];
+  const waveRings = [];
 
-  let width = 1200;
-  let height = 580;
+  let width = 1000;
+  let height = 560;
+  let selectedStrikeIdx = 13; // Default: KXNHLGAME-FLA
 
-  // Simulation counters
+  // Counters
   let running = true;
   let stepCount = 0;
   let cutoffSuppressed = 0;
@@ -918,11 +682,17 @@ footer.site-footer {
   let cronExits = 0;
   let cronPnlCents = 0;
 
-  function buildGraphLayout() {
+  function kalshiFeeCc(qtyH, priceCc) {
+    const p = priceCc / 10000;
+    const contracts = qtyH / 100;
+    return Math.round(700 * contracts * p * (1 - p));
+  }
+
+  function buildLayout() {
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    width = rect.width || 1200;
-    height = rect.height || 580;
+    width = rect.width || 1000;
+    height = rect.height || 560;
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -930,11 +700,11 @@ footer.site-footer {
     nodes.length = 0;
     edges.length = 0;
 
-    const yLevels = [0.12, 0.33, 0.56, 0.77, 0.91];
-    const padX = 52;
+    const yLevels = [0.12, 0.34, 0.56, 0.77, 0.91];
+    const padX = 48;
     const usableW = width - padX * 2;
 
-    // Layer 0: 6 External Oracles (0..5)
+    // H=0 Oracles (0..5)
     for (let i = 0; i < ORACLES.length; i++) {
       const x = padX + (usableW * (i + 0.5)) / ORACLES.length;
       nodes.push({
@@ -942,15 +712,16 @@ footer.site-footer {
         layer: 0,
         x,
         y: height * yLevels[0],
-        r: 7,
+        r: 8,
         label: ORACLES[i].name,
         sub: ORACLES[i].val,
         glow: 0,
-        kind: 'oracle'
+        color: COBALT,
+        oraIdx: i
       });
     }
 
-    // Layer 1: 18 Strike Leaves + Cutoff Gate (6..23)
+    // H=1 Strike Leaves + Cutoff Gate (6..23)
     const leafStart = nodes.length;
     for (let i = 0; i < STRIKES.length; i++) {
       const x = padX + (usableW * i) / (STRIKES.length - 1);
@@ -960,18 +731,19 @@ footer.site-footer {
         layer: 1,
         x,
         y: height * yLevels[1],
-        r: 5.5,
-        label: STRIKES[i].tk,
+        r: 6.5,
+        label: STRIKES[i].tk.replace(/^KX/, ''),
         sub: (STRIKES[i].bid / 100).toFixed(0) + '¢',
         glow: 0,
-        cutoffGlow: 0,
-        kind: 'leaf',
+        cutoffPulse: 0,
+        gapPulse: 0,
+        color: COBALT,
         strikeIdx: i
       });
-      edges.push({ from: STRIKES[i].ora, to: id, glow: 0, color: '#38bdf8' });
+      edges.push({ from: STRIKES[i].ora, to: id, glow: 0, color: COBALT });
     }
 
-    // Layer 2: 18 MakerQuote / HarvestTrigger Compute Nodes (24..41)
+    // H=2 Compute Nodes (24..41)
     const compStart = nodes.length;
     for (let i = 0; i < STRIKES.length; i++) {
       const x = padX + (usableW * i) / (STRIKES.length - 1);
@@ -981,17 +753,17 @@ footer.site-footer {
         layer: 2,
         x,
         y: height * yLevels[2],
-        r: 5.5,
-        label: 'HARVEST',
+        r: 6,
+        label: 'FEE+GATE',
         sub: '',
         glow: 0,
-        kind: 'compute',
+        color: PLUM,
         strikeIdx: i
       });
-      edges.push({ from: leafStart + i, to: id, glow: 0, color: '#38bdf8' });
+      edges.push({ from: leafStart + i, to: id, glow: 0, color: COBALT });
     }
 
-    // Layer 3: 4 Series IncrFoldSum Nodes (42..45)
+    // H=3 IncrFoldSum Nodes (42..45)
     const foldStart = nodes.length;
     for (let f = 0; f < FOLDS.length; f++) {
       const x = padX + (usableW * (f + 0.5)) / FOLDS.length;
@@ -1001,11 +773,12 @@ footer.site-footer {
         layer: 3,
         x,
         y: height * yLevels[3],
-        r: 10,
-        label: FOLDS[f],
-        sub: 'O(1) Δ',
+        r: 11,
+        label: FOLDS[f].name,
+        sub: 'Σ ' + (FOLDS[f].sumCc / 100).toFixed(0) + '¢',
         glow: 0,
-        kind: 'fold'
+        color: PLUM,
+        foldIdx: f
       });
     }
     for (let i = 0; i < STRIKES.length; i++) {
@@ -1013,84 +786,165 @@ footer.site-footer {
         from: compStart + i,
         to: foldStart + STRIKES[i].fam,
         glow: 0,
-        color: '#a78bfa'
+        color: PLUM
       });
     }
 
-    // Layer 4: 2 Output Nodes (46..47)
+    // H=4 Output Nodes (46..47)
     const outStart = nodes.length;
     for (let o = 0; o < OUTPUTS.length; o++) {
-      const x = width * (o === 0 ? 0.36 : 0.64);
+      const x = width * (o === 0 ? 0.35 : 0.65);
       const id = nodes.length;
       nodes.push({
         id,
         layer: 4,
         x,
         y: height * yLevels[4],
-        r: 11,
-        label: OUTPUTS[o],
-        sub: 'S4 BATCH',
+        r: 12,
+        label: OUTPUTS[o].name,
+        sub: OUTPUTS[o].sub,
         glow: 0,
-        kind: 'output'
+        color: JADE
       });
     }
     for (let f = 0; f < FOLDS.length; f++) {
-      edges.push({ from: foldStart + f, to: outStart, glow: 0, color: '#10b981' });
-      edges.push({ from: foldStart + f, to: outStart + 1, glow: 0, color: '#10b981' });
+      edges.push({ from: foldStart + f, to: outStart, glow: 0, color: JADE });
+      edges.push({ from: foldStart + f, to: outStart + 1, glow: 0, color: JADE });
     }
+
+    drawFeeCurve();
   }
 
-  function spawnEdgeParticle(fromId, toId, color) {
-    const f = nodes[fromId];
-    const t = nodes[toId];
-    if (!f || !t) return;
-    particles.push({
-      fx: f.x, fy: f.y,
-      tx: t.x, ty: t.y,
-      p: 0,
-      speed: 0.065,
-      color
-    });
+  function spawnWaveRing(x, y, color, maxR) {
+    waveRings.push({ x, y, r: 6, maxR: maxR || 42, alpha: 0.85, color });
   }
 
-  function highlightEdge(fromId, toId, color) {
+  function fireEdge(fromId, toId, color) {
     for (let i = 0; i < edges.length; i++) {
       if (edges[i].from === fromId && edges[i].to === toId) {
         edges[i].glow = 1.0;
         edges[i].color = color;
-        spawnEdgeParticle(fromId, toId, color);
+        const f = nodes[fromId];
+        const t = nodes[toId];
+        particles.push({
+          fx: f.x, fy: f.y,
+          tx: t.x, ty: t.y,
+          p: 0,
+          speed: 0.06,
+          color
+        });
         break;
       }
     }
   }
 
-  const tapeBar = document.getElementById('tape-bar');
-  function pushTapePill(text, cls) {
-    const el = document.createElement('span');
-    el.className = 'tape-pill ' + (cls || '');
-    el.textContent = text;
-    tapeBar.prepend(el);
-    while (tapeBar.children.length > 9) {
-      tapeBar.removeChild(tapeBar.lastChild);
+  const streamList = document.getElementById('stream-list');
+  function pushLog(msg, cls) {
+    const div = document.createElement('div');
+    div.className = 'stream-item ' + (cls || '');
+    div.textContent = msg;
+    streamList.prepend(div);
+    while (streamList.children.length > 14) {
+      streamList.removeChild(streamList.lastChild);
     }
   }
 
-  function updateHud(ns, recomputedCount) {
-    document.getElementById('hud-ns').textContent = ns + ' ns';
-    document.getElementById('hud-recomp').textContent = recomputedCount + ' / ' + nodes.length;
-    document.getElementById('hud-cutoff').textContent = cutoffSuppressed.toLocaleString();
-    document.getElementById('hud-seq').textContent = '#' + wsSeq + ' (' + wsGapsHealed + ' healed)';
+  function updateInspector(sIdx, lastDeltaLabel) {
+    selectedStrikeIdx = sIdx;
+    const st = STRIKES[sIdx];
+    const feeCc = kalshiFeeCc(st.qty, st.bid);
+    const perCtFeeCc = Math.round(feeCc / (st.qty / 100));
+    const targetCc = st.entry + perCtFeeCc + 50;
 
-    document.getElementById('score-trad-nodes').textContent = nodes.length + ' / ' + nodes.length + ' nodes';
-    document.getElementById('score-seiche-nodes').textContent = recomputedCount + ' / ' + nodes.length + ' nodes';
-    document.getElementById('score-seiche-exits').textContent =
-      seicheExits + ' exits (+$' + (seichePnlCents / 100).toFixed(2) + ')';
-    document.getElementById('score-cron-exits').textContent =
-      cronExits + ' exits (+$' + (cronPnlCents / 100).toFixed(2) + ')';
+    document.getElementById('insp-title').textContent =
+      `${st.tk} (${ORACLES[st.ora].name})`;
+    document.getElementById('insp-bid').textContent =
+      `${(st.bid / 100).toFixed(2)}¢ / ${(st.entry / 100).toFixed(2)}¢`;
+    document.getElementById('insp-fee').textContent =
+      `${feeCc} cc ($${(feeCc / 10000).toFixed(4)})`;
+    document.getElementById('insp-target').textContent =
+      `${(targetCc / 100).toFixed(2)}¢ (+50cc net)`;
+    if (lastDeltaLabel) {
+      document.getElementById('insp-delta').textContent = lastDeltaLabel;
+    }
+    drawFeeCurve();
   }
 
-  // Propagate a single strike tick through the DAG
-  function triggerStrikePropagation(sIdx, deltaCc, isSpike) {
+  function drawFeeCurve() {
+    const rect = feeCanvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const fw = rect.width || 320;
+    const fh = rect.height || 92;
+    feeCanvas.width = fw * dpr;
+    feeCanvas.height = fh * dpr;
+    fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    fctx.clearRect(0, 0, fw, fh);
+
+    const padL = 28, padR = 14, padT = 14, padB = 20;
+    const pw = fw - padL - padR;
+    const ph = fh - padT - padB;
+
+    // Baseline grid
+    fctx.strokeStyle = RULE_LINE;
+    fctx.lineWidth = 1;
+    fctx.beginPath();
+    fctx.moveTo(padL, padT + ph);
+    fctx.lineTo(padL + pw, padT + ph);
+    fctx.stroke();
+
+    // Draw parabolic fee curve 0.07 * P * (1-P) peaking at 50c (1.75c/ct)
+    fctx.beginPath();
+    for (let px = 1; px <= 99; px++) {
+      const p = px / 100;
+      const feeCents = 7 * p * (1 - p); // max 1.75c
+      const x = padL + (px / 100) * pw;
+      const y = padT + ph - (feeCents / 1.85) * ph;
+      if (px === 1) fctx.moveTo(x, y);
+      else fctx.lineTo(x, y);
+    }
+    fctx.strokeStyle = COBALT;
+    fctx.lineWidth = 2;
+    fctx.stroke();
+
+    // Plot selected strike's current bid on the parabola
+    const st = STRIKES[selectedStrikeIdx];
+    const pCur = st.bid / 10000;
+    const feeCur = 7 * pCur * (1 - pCur);
+    const cx = padL + pCur * pw;
+    const cy = padT + ph - (feeCur / 1.85) * ph;
+
+    fctx.beginPath();
+    fctx.arc(cx, cy, 4.5, 0, Math.PI * 2);
+    fctx.fillStyle = VERMILION;
+    fctx.fill();
+
+    fctx.font = '600 10px "IBM Plex Mono", monospace';
+    fctx.fillStyle = INK_DARK;
+    fctx.textAlign = 'left';
+    fctx.fillText(`1¢`, padL, fh - 5);
+    fctx.textAlign = 'center';
+    fctx.fillText(`50¢ (max 1.75¢/ct)`, padL + pw * 0.5, fh - 5);
+    fctx.textAlign = 'right';
+    fctx.fillText(`${(st.bid / 100).toFixed(0)}¢ → ${feeCur.toFixed(2)}¢/ct`, padL + pw, padT + 10);
+  }
+
+  function syncTopTelemetry(ns, touched) {
+    document.getElementById('top-ns').textContent = ns + ' ns';
+    document.getElementById('top-recomp').textContent = `${touched} / ${nodes.length}`;
+    document.getElementById('top-cutoff').textContent = cutoffSuppressed.toLocaleString();
+    document.getElementById('top-seq').textContent = `#${wsSeq} (${wsGapsHealed} healed)`;
+    document.getElementById('top-hash').textContent = '0x' + stateHash.toString(16).padStart(8, '0');
+
+    const pct = ((touched / nodes.length) * 100).toFixed(1);
+    document.getElementById('stat-seiche').textContent = `${touched} / ${nodes.length} nodes (${pct}%)`;
+    document.getElementById('stat-seiche-pnl').textContent =
+      `${seicheExits} exits (+$${(seichePnlCents / 100).toFixed(2)})`;
+    document.getElementById('stat-cron-pnl').textContent =
+      `${cronExits} exits (+$${(cronPnlCents / 100).toFixed(2)})`;
+  }
+
+  function propagateStrike(sIdx, deltaCc, isTransientSpike) {
     stepCount++;
     wsSeq++;
     const st = STRIKES[sIdx];
@@ -1102,127 +956,173 @@ footer.site-footer {
     const out1 = 47;
 
     nodes[oraId].glow = 1.0;
-    highlightEdge(oraId, leafId, '#38bdf8');
+    spawnWaveRing(nodes[oraId].x, nodes[oraId].y, COBALT, 34);
+    fireEdge(oraId, leafId, COBALT);
 
-    // Cutoff::Band(25cc) check
+    // Cutoff::Band(25cc) deadband check
     if (Math.abs(deltaCc) < 25) {
       cutoffSuppressed++;
-      nodes[leafId].cutoffGlow = 1.0;
-      updateHud(62, 0);
-      pushTapePill(
-        `CUTOFF ${st.tk} Δ${deltaCc >= 0 ? '+' : ''}${(deltaCc / 100).toFixed(2)}¢ < 0.25¢ band (0 nodes woken)`,
+      nodes[leafId].cutoffPulse = 1.0;
+      spawnWaveRing(nodes[leafId].x, nodes[leafId].y, OCHRE, 28);
+      syncTopTelemetry(58, 0);
+      updateInspector(sIdx, 'NoOp (Cutoff <25cc)');
+      pushLog(
+        `[CUTOFF] ${st.tk} Δ${deltaCc >= 0 ? '+' : ''}${(deltaCc / 100).toFixed(2)}¢ < 0.25¢ deadband → 0 downstream nodes woken`,
         'cutoff'
       );
       return;
     }
 
+    const oldBid = st.bid;
     st.bid = Math.max(400, Math.min(9800, st.bid + deltaCc));
+    FOLDS[st.fam].sumCc += (st.bid - oldBid);
+
     nodes[leafId].sub = (st.bid / 100).toFixed(0) + '¢';
     nodes[leafId].glow = 1.0;
     nodes[compId].glow = 1.0;
     nodes[foldId].glow = 1.0;
+    nodes[foldId].sub = 'Σ ' + (FOLDS[st.fam].sumCc / 100).toFixed(0) + '¢';
     nodes[out0].glow = 1.0;
     nodes[out1].glow = 1.0;
 
-    highlightEdge(leafId, compId, '#38bdf8');
-    setTimeout(() => highlightEdge(compId, foldId, '#a78bfa'), 55);
-    setTimeout(() => {
-      highlightEdge(foldId, out0, '#10b981');
-      highlightEdge(foldId, out1, '#10b981');
-    }, 110);
+    spawnWaveRing(nodes[leafId].x, nodes[leafId].y, COBALT, 32);
+    fireEdge(leafId, compId, COBALT);
 
-    // Check HarvestTrigger: bid_cc - entry_cc >= fee_cc + 50cc
-    const p = st.bid / 10000;
-    const feeCc = Math.round(700 * p * (1 - p));
-    const netCc = st.bid - st.entry - feeCc;
-    if (netCc >= 50) {
-      const profitCents = Math.round((netCc * 5) / 100);
+    setTimeout(() => {
+      spawnWaveRing(nodes[compId].x, nodes[compId].y, PLUM, 28);
+      fireEdge(compId, foldId, PLUM);
+    }, 55);
+
+    setTimeout(() => {
+      spawnWaveRing(nodes[foldId].x, nodes[foldId].y, JADE, 44);
+      fireEdge(foldId, out0, JADE);
+      fireEdge(foldId, out1, JADE);
+    }, 115);
+
+    const totalFeeCc = kalshiFeeCc(st.qty, st.bid);
+    const grossCc = Math.round(((st.bid - st.entry) * st.qty) / 100);
+    const netCc = grossCc - totalFeeCc;
+    const minReqCc = Math.round((50 * st.qty) / 100);
+
+    if (netCc >= minReqCc) {
+      const profitCents = Math.round(netCc / 100);
       seicheExits++;
       seichePnlCents += profitCents;
-      // 60m cron only catches 1 in 4 transient spikes
-      if (!isSpike && stepCount % 12 === 0) {
+      if (!isTransientSpike && stepCount % 12 === 0) {
         cronExits++;
         cronPnlCents += profitCents;
       }
-      pushTapePill(
-        `HARVEST EXIT ${st.tk} @ ${(st.bid / 100).toFixed(0)}¢ (net +$${(profitCents / 100).toFixed(2)} after ${feeCc}cc fee)`,
+      spawnWaveRing(nodes[out1].x, nodes[out1].y, JADE, 52);
+      updateInspector(sIdx, `HarvestExit(${(st.bid / 100).toFixed(0)}¢)`);
+      pushLog(
+        `[HARVEST] ${st.tk} exited @ ${(st.bid / 100).toFixed(0)}¢ → net +$${(profitCents / 100).toFixed(2)} (fee ${totalFeeCc}cc)`,
         'harvest'
       );
-      // Reset entry anchor after harvest fill
       st.entry = st.bid;
     } else {
-      pushTapePill(
-        `DELTA ${st.tk} ${(st.bid / 100).toFixed(0)}¢ → 4/48 nodes stabilized (184ns)`,
+      updateInspector(sIdx, `Patch(${(st.bid / 100).toFixed(0)}¢)`);
+      pushLog(
+        `[STABILIZE 184ns] ${st.tk} → ${(st.bid / 100).toFixed(0)}¢ (4/48 nodes recomputed, IncrFold O(1) updated)`,
         ''
       );
     }
 
-    updateHud(178 + Math.floor(nextRand() * 14), 4);
+    syncTopTelemetry(176 + Math.floor(nextRand() * 16), 4);
   }
 
-  function stepSimulation() {
+  function stepOnce() {
     const r = nextRand();
     const sIdx = Math.floor(nextRand() * STRIKES.length);
-    if (r < 0.28) {
-      // Sub-cent noise blocked by Cutoff::Band(25cc)
-      const noiseCc = Math.floor((nextRand() - 0.5) * 40);
-      triggerStrikePropagation(sIdx, noiseCc, false);
+    if (r < 0.26) {
+      const microNoise = Math.floor((nextRand() - 0.5) * 38);
+      propagateStrike(sIdx, microNoise, false);
     } else {
-      const moveCc = (nextRand() > 0.42 ? 1 : -1) * (50 + Math.floor(nextRand() * 180));
-      triggerStrikePropagation(sIdx, moveCc, false);
+      const jump = (nextRand() > 0.43 ? 1 : -1) * (50 + Math.floor(nextRand() * 170));
+      propagateStrike(sIdx, jump, false);
     }
   }
 
-  // Button handlers
+  // Click any node on the canvas to inspect & shock it!
+  canvas.addEventListener('click', function(ev) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = ev.clientX - rect.left;
+    const my = ev.clientY - rect.top;
+
+    for (const n of nodes) {
+      const dx = mx - n.x;
+      const dy = my - n.y;
+      if (dx * dx + dy * dy <= (n.r + 14) * (n.r + 14)) {
+        if (typeof n.strikeIdx === 'number') {
+          propagateStrike(n.strikeIdx, 180, true);
+          return;
+        }
+        if (typeof n.oraIdx === 'number') {
+          STRIKES.forEach((st, idx) => {
+            if (st.ora === n.oraIdx) {
+              setTimeout(() => propagateStrike(idx, 160, true), idx * 25);
+            }
+          });
+          return;
+        }
+      }
+    }
+  });
+
+  // Controls
   document.getElementById('btn-play').addEventListener('click', function() {
     running = !running;
     this.textContent = running ? 'Pause Stream' : 'Resume Stream';
+    this.classList.toggle('active-run', running);
   });
 
-  document.getElementById('btn-step').addEventListener('click', function() {
-    stepSimulation();
-  });
+  document.getElementById('btn-step').addEventListener('click', stepOnce);
 
   document.getElementById('btn-pyth').addEventListener('click', function() {
-    // Shock all 3 Gold strikes simultaneously
     [0, 1, 2].forEach((idx, k) => {
-      setTimeout(() => triggerStrikePropagation(idx, 220, true), k * 40);
+      setTimeout(() => propagateStrike(idx, 230, true), k * 45);
     });
   });
 
   document.getElementById('btn-nws').addEventListener('click', function() {
-    triggerStrikePropagation(8, 250, true);
-    setTimeout(() => triggerStrikePropagation(9, 190, true), 45);
+    propagateStrike(8, 260, true);
+    setTimeout(() => propagateStrike(9, 200, true), 50);
+  });
+
+  document.getElementById('btn-spike').addEventListener('click', function() {
+    STRIKES[13].entry = 4700;
+    STRIKES[13].bid = 4700;
+    propagateStrike(13, 1900, true);
   });
 
   document.getElementById('btn-noise').addEventListener('click', function() {
     const sIdx = Math.floor(nextRand() * STRIKES.length);
-    triggerStrikePropagation(sIdx, 14, false);
+    propagateStrike(sIdx, 14, false);
   });
 
   document.getElementById('btn-gap').addEventListener('click', function() {
     wsSeq += 2;
-    wsGapsHealed += 1;
+    wsGapsHealed++;
     const sIdx = Math.floor(nextRand() * STRIKES.length);
     const leafId = 6 + sIdx;
-    nodes[leafId].cutoffGlow = 1.0;
-    pushTapePill(
-      `WS GAP seq #${wsSeq - 1} missing on ${STRIKES[sIdx].tk} → buffered #${wsSeq}, drained in-order`,
+    nodes[leafId].gapPulse = 1.0;
+    spawnWaveRing(nodes[leafId].x, nodes[leafId].y, VERMILION, 38);
+    updateInspector(sIdx, `GapBuffered(seq #${wsSeq})`);
+    pushLog(
+      `[DELTA_BUFFER] Out-of-order WS frame #${wsSeq} on ${STRIKES[sIdx].tk} (missing #${wsSeq - 1}) → buffered & healed`,
       'gap'
     );
-    updateHud(95, 0);
+    syncTopTelemetry(92, 0);
   });
 
-  document.getElementById('btn-spike').addEventListener('click', function() {
-    // Real FLAOTT 47c -> 66c intra-hour spike that faded before 60m cron
-    STRIKES[13].entry = 4700;
-    STRIKES[13].bid = 4700;
-    triggerStrikePropagation(13, 1900, true);
+  document.getElementById('btn-storm').addEventListener('click', function() {
+    for (let k = 0; k < 12; k++) {
+      setTimeout(stepOnce, k * 65);
+    }
   });
 
   document.getElementById('btn-reseed').addEventListener('click', function() {
-    const val = parseInt(document.getElementById('seed-input').value, 10) || 20261029;
-    seedPrng(val);
+    const s = parseInt(document.getElementById('seed-input').value, 10) || 20261029;
+    seedPrng(s);
     stepCount = 0;
     cutoffSuppressed = 0;
     wsSeq = 1;
@@ -1231,34 +1131,44 @@ footer.site-footer {
     seichePnlCents = 0;
     cronExits = 0;
     cronPnlCents = 0;
-    tapeBar.innerHTML = '';
-    pushTapePill(`VOPR PRNG re-seeded to ${val} (deterministic state hash reset)`, 'harvest');
-    updateHud(184, 0);
+    streamList.innerHTML = '';
+    pushLog(`[VOPR SEED ${s}] Deterministic SplitMix64 state reset`, 'harvest');
+    syncTopTelemetry(184, 0);
   });
 
-  function renderCanvas() {
+  function renderObservatory() {
     ctx.clearRect(0, 0, width, height);
 
-    // Draw horizontal layer guide lines
-    const yLabels = [
-      { y: 0.12, text: 'H=0  EXTERNAL ANCHORS (PYTH / NWS / SPORTSBOOKS)' },
-      { y: 0.33, text: 'H=1  KALSHI LEAVES + CUTOFF::BAND(25cc) GATE' },
-      { y: 0.56, text: 'H=2  MAKER QUOTE & HARVEST TRIGGER NODES' },
-      { y: 0.77, text: 'H=3  INCR_FOLD_SUM (O(1) SUBTRACT-OLD / ADD-NEW)' },
-      { y: 0.91, text: 'H=4  S4 BATCHED ALGEBRAIC OUTPUT DELTAS' }
-    ];
-    ctx.font = '500 10px "JetBrains Mono", monospace';
-    ctx.textAlign = 'left';
-    for (const yl of yLabels) {
-      const py = height * yl.y;
-      ctx.strokeStyle = 'rgba(27, 38, 59, 0.45)';
-      ctx.lineWidth = 1;
+    // Subtle drafting grid lines
+    ctx.strokeStyle = 'rgba(184, 202, 216, 0.45)';
+    ctx.lineWidth = 1;
+    const gridStep = 48;
+    for (let x = gridStep; x < width; x += gridStep) {
       ctx.beginPath();
-      ctx.moveTo(16, py - 22);
-      ctx.lineTo(width - 16, py - 22);
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
       ctx.stroke();
-      ctx.fillStyle = 'rgba(148, 166, 196, 0.52)';
-      ctx.fillText(yl.text, 18, py - 27);
+    }
+
+    // Horizontal topological height datum lines
+    const bands = [
+      { y: 0.12, label: 'H=0  EXTERNAL ORACLE LEAVES (PYTH / NWS / SPORTSBOOK CONSENSUS)' },
+      { y: 0.34, label: 'H=1  KALSHI CONTRACT LEAVES + CUTOFF::BAND(25cc) HYSTERESIS GATE' },
+      { y: 0.56, label: 'H=2  QUADRATIC TAKER-FEE & HARVEST TRIGGER NODES' },
+      { y: 0.77, label: 'H=3  INCR_FOLD_SUM (O(1) SUBTRACT-OLD / ADD-NEW SERIES AGGREGATORS)' },
+      { y: 0.91, label: 'H=4  S4 ATOMIC OUTPUT DELTA STREAM (IDEMPOTENT SET / PATCH / REMOVE)' }
+    ];
+    ctx.font = '600 10px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'left';
+    for (const b of bands) {
+      const py = height * b.y;
+      ctx.strokeStyle = RULE_LINE;
+      ctx.beginPath();
+      ctx.moveTo(16, py - 24);
+      ctx.lineTo(width - 16, py - 24);
+      ctx.stroke();
+      ctx.fillStyle = INK_MUTED;
+      ctx.fillText(b.label, 18, py - 29);
     }
 
     // Draw edges
@@ -1272,19 +1182,37 @@ footer.site-footer {
 
       if (e.glow > 0.04) {
         ctx.strokeStyle = e.color;
-        ctx.globalAlpha = Math.min(1, e.glow * 0.85);
-        ctx.lineWidth = 1.8;
+        ctx.globalAlpha = Math.min(1, e.glow * 0.95);
+        ctx.lineWidth = 2.4;
       } else {
-        ctx.strokeStyle = 'rgba(40, 56, 86, 0.36)';
+        ctx.strokeStyle = 'rgba(134, 160, 181, 0.45)';
         ctx.globalAlpha = 1;
-        ctx.lineWidth = 0.75;
+        ctx.lineWidth = 1.0;
       }
       ctx.stroke();
       ctx.globalAlpha = 1;
-      e.glow *= 0.92;
+      e.glow *= 0.91;
     }
 
-    // Draw particles
+    // Draw standing-wave concentric seiche rings
+    for (let i = waveRings.length - 1; i >= 0; i--) {
+      const wr = waveRings[i];
+      wr.r += (wr.maxR - wr.r) * 0.11;
+      wr.alpha *= 0.91;
+      if (wr.alpha < 0.04) {
+        waveRings.splice(i, 1);
+        continue;
+      }
+      ctx.beginPath();
+      ctx.arc(wr.x, wr.y, wr.r, 0, Math.PI * 2);
+      ctx.strokeStyle = wr.color;
+      ctx.globalAlpha = wr.alpha;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // Draw traveling delta packets along bezier curves
     for (let i = particles.length - 1; i >= 0; i--) {
       const pt = particles[i];
       pt.p += pt.speed;
@@ -1307,78 +1235,68 @@ footer.site-footer {
         u * u * u * pt.ty;
 
       ctx.beginPath();
-      ctx.arc(cx, cy, 3.2, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 4.0, 0, Math.PI * 2);
       ctx.fillStyle = pt.color;
       ctx.fill();
     }
 
-    // Draw nodes
+    // Draw DAG nodes
     for (const n of nodes) {
+      const isSelected = n.layer === 1 && n.strikeIdx === selectedStrikeIdx;
+
       ctx.beginPath();
-      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      ctx.arc(n.x, n.y, n.r + (isSelected ? 2.5 : 0), 0, Math.PI * 2);
 
-      if (n.cutoffGlow && n.cutoffGlow > 0.08) {
-        ctx.fillStyle = '#f59e0b';
+      if (n.gapPulse && n.gapPulse > 0.08) {
+        ctx.fillStyle = VERMILION;
         ctx.fill();
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, n.r + (1 - n.cutoffGlow) * 16, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(245, 158, 11, ${n.cutoffGlow * 0.7})`;
-        ctx.lineWidth = 1.4;
-        ctx.stroke();
-        n.cutoffGlow *= 0.91;
-      } else if (n.glow > 0.05) {
-        let col = '#38bdf8';
-        if (n.layer === 3) col = '#a78bfa';
-        if (n.layer === 4) col = '#10b981';
-        ctx.fillStyle = col;
+        n.gapPulse *= 0.91;
+      } else if (n.cutoffPulse && n.cutoffPulse > 0.08) {
+        ctx.fillStyle = OCHRE;
         ctx.fill();
-
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, n.r + (1 - n.glow) * 18, 0, Math.PI * 2);
-        ctx.strokeStyle = col;
-        ctx.globalAlpha = n.glow * 0.45;
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-        ctx.globalAlpha = 1;
+        n.cutoffPulse *= 0.91;
+      } else if (n.glow > 0.06) {
+        ctx.fillStyle = n.color;
+        ctx.fill();
       } else {
-        ctx.fillStyle = '#1b263b';
+        ctx.fillStyle = isSelected ? '#ffffff' : '#f8fbfd';
         ctx.fill();
-        ctx.strokeStyle = '#283856';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = isSelected ? COBALT : '#5c7893';
+        ctx.lineWidth = isSelected ? 2.2 : 1.3;
         ctx.stroke();
       }
 
       // Labels
-      if (n.layer === 0 || n.layer >= 3 || n.glow > 0.2 || width > 1050) {
+      if (n.layer === 0 || n.layer >= 3 || n.glow > 0.15 || isSelected || width > 960) {
         ctx.textAlign = 'center';
-        ctx.font = n.layer >= 3 ? '600 9.5px "JetBrains Mono", monospace' : '500 8px "JetBrains Mono", monospace';
-        ctx.fillStyle = n.glow > 0.15 ? '#e8eef7' : 'rgba(148, 166, 196, 0.72)';
-        const shortLabel = n.layer === 1 ? n.label.replace(/^KX/, '') : n.label;
-        ctx.fillText(shortLabel, n.x, n.y + n.r + 11);
-        if (n.sub && (n.layer !== 2)) {
-          ctx.fillStyle = n.glow > 0.15 ? '#38bdf8' : 'rgba(89, 107, 135, 0.85)';
-          ctx.fillText(n.sub, n.x, n.y + n.r + 21);
+        ctx.font = n.layer >= 3 ? '700 10px "IBM Plex Mono", monospace' : '600 8.5px "IBM Plex Mono", monospace';
+        ctx.fillStyle = (n.glow > 0.15 || isSelected) ? INK_DARK : INK_MID;
+        ctx.fillText(n.label, n.x, n.y + n.r + 12);
+        if (n.sub && n.layer !== 2) {
+          ctx.fillStyle = n.glow > 0.15 ? n.color : INK_MUTED;
+          ctx.fillText(n.sub, n.x, n.y + n.r + 22);
         }
       }
 
-      n.glow *= 0.93;
+      n.glow *= 0.92;
     }
   }
 
-  buildGraphLayout();
-  window.addEventListener('resize', buildGraphLayout);
+  buildLayout();
+  updateInspector(13, 'Ready');
+  window.addEventListener('resize', buildLayout);
 
-  let lastStepAt = performance.now();
-  function animate(now) {
-    if (running && now - lastStepAt > 420) {
-      stepSimulation();
-      lastStepAt = now;
+  let lastTick = performance.now();
+  function loop(now) {
+    if (running && now - lastTick > 420) {
+      stepOnce();
+      lastTick = now;
     }
-    renderCanvas();
-    requestAnimationFrame(animate);
+    renderObservatory();
+    requestAnimationFrame(loop);
   }
-  pushTapePill('SEICHE VOPR READY — 6 Oracles → 18 Kalshi Contracts → 4 IncrFolds → 2 Output Streams', 'harvest');
-  requestAnimationFrame(animate);
+  pushLog('[SEICHE READY] Click any node on the drafting canvas or trigger a fault above', 'harvest');
+  requestAnimationFrame(loop);
 })();
 </script>
 </body>
