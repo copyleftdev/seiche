@@ -324,11 +324,13 @@ canvas#seiche-stage {
   }
 
   function spawnRing(x, y, color, maxR) {
-    rings.push({ x, y, r: 3, maxR: maxR || 34, alpha: 0.75, color });
+    if (rings.length >= 24) rings.shift();
+    rings.push({ x, y, r: 3, maxR: maxR || 34, alpha: 0.72, color });
   }
 
   function spawnFloatTag(x, y, text, color) {
-    floatTags.push({ x, y: y - 8, vy: -0.38, alpha: 1.0, text, color });
+    if (floatTags.length >= 16) floatTags.shift();
+    floatTags.push({ x, y: y - 8, vy: -0.38, alpha: 0.95, text, color });
   }
 
   function activateEdge(fromId, toId, color, speed) {
@@ -337,6 +339,7 @@ canvas#seiche-stage {
       if (e.from === fromId && e.to === toId) {
         e.glow = 1.0;
         e.color = color;
+        if (pulses.length >= 36) pulses.shift();
         const f = nodes[fromId];
         const t = nodes[toId];
         pulses.push({
@@ -514,7 +517,8 @@ canvas#seiche-stage {
     }
   });
 
-  // Auto-attach to local `seiche serve` (:8790/events) if running
+  // Auto-attach to local `seiche serve` (:8790/events) if running, with client-side 90ms frame gate
+  let lastSseProcessedAt = 0;
   function connectLiveSocket() {
     const url = (window.location.port === '8790') ? '/events' : 'http://127.0.0.1:8790/events';
     try {
@@ -523,9 +527,15 @@ canvas#seiche-stage {
         liveSseConnected = true;
       });
       es.addEventListener('dag', function(ev) {
+        const nowMs = performance.now();
+        if (nowMs - lastSseProcessedAt < 90) return;
+        lastSseProcessedAt = nowMs;
         try {
           const d = JSON.parse(ev.data);
           liveSseConnected = true;
+          if (typeof d.cutoffs === 'number') {
+            totalCutoffs = d.cutoffs;
+          }
           if (d.kind === 'tick') {
             const slot18 = (typeof d.slot === 'number') ? (d.slot % 18) : 0;
             const leafIdx = (slot18 * 2 + (d.seq ? (d.seq % 2) : 0)) % 36;
@@ -576,7 +586,7 @@ canvas#seiche-stage {
       32
     );
 
-    // 1. Draw delicate cubic-bezier filaments (0.45px idle, 1.25px active with bloom)
+    // 1. Draw delicate cubic-bezier filaments (0.45px idle, 1.25px active with zero-shadowBlur additive glow)
     for (let i = 0; i < edges.length; i++) {
       const e = edges[i];
       const f = nodes[e.from];
@@ -588,14 +598,17 @@ canvas#seiche-stage {
       ctx.bezierCurveTo(f.x, midY, t.x, midY, t.x, t.y);
 
       if (e.glow > 0.02) {
-        ctx.save();
+        // Soft wide under-stroke for bloom without expensive CPU shadowBlur
         ctx.strokeStyle = e.color;
-        ctx.globalAlpha = Math.min(0.9, e.glow * 0.85);
-        ctx.lineWidth = 1.2;
-        ctx.shadowColor = e.color;
-        ctx.shadowBlur = 12 * e.glow;
+        ctx.globalAlpha = e.glow * 0.18;
+        ctx.lineWidth = 4.0;
         ctx.stroke();
-        ctx.restore();
+
+        // Crisp core filament
+        ctx.globalAlpha = Math.min(0.92, e.glow * 0.85);
+        ctx.lineWidth = 1.15;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
       } else {
         ctx.strokeStyle = 'rgba(148, 163, 196, 0.11)';
         ctx.lineWidth = 0.5;
@@ -604,7 +617,7 @@ canvas#seiche-stage {
       e.glow *= 0.935;
     }
 
-    // 2. Draw expanding concentric seiche wave rings
+    // 2. Draw expanding concentric seiche wave rings (pure additivelighter, zero shadowBlur)
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     for (let i = rings.length - 1; i >= 0; i--) {
@@ -618,10 +631,8 @@ canvas#seiche-stage {
       ctx.beginPath();
       ctx.arc(rg.x, rg.y, rg.r, 0, Math.PI * 2);
       ctx.strokeStyle = rg.color;
-      ctx.globalAlpha = rg.alpha * 0.65;
-      ctx.lineWidth = 1.0;
-      ctx.shadowColor = rg.color;
-      ctx.shadowBlur = 10;
+      ctx.globalAlpha = rg.alpha * 0.55;
+      ctx.lineWidth = 1.1;
       ctx.stroke();
     }
 
@@ -648,9 +659,8 @@ canvas#seiche-stage {
         u * u * u * pl.ty;
 
       pl.trail.push({ x: cx, y: cy });
-      if (pl.trail.length > 7) pl.trail.shift();
+      if (pl.trail.length > 6) pl.trail.shift();
 
-      // Comet tail
       if (pl.trail.length > 1) {
         ctx.beginPath();
         ctx.moveTo(pl.trail[0].x, pl.trail[0].y);
@@ -658,24 +668,26 @@ canvas#seiche-stage {
           ctx.lineTo(pl.trail[k].x, pl.trail[k].y);
         }
         ctx.strokeStyle = pl.color;
-        ctx.globalAlpha = 0.55;
-        ctx.lineWidth = 1.5;
-        ctx.shadowColor = pl.color;
-        ctx.shadowBlur = 10;
+        ctx.globalAlpha = 0.45;
+        ctx.lineWidth = 2.2;
         ctx.stroke();
       }
 
-      // Pinpoint core
+      // Soft outer halo + crisp pinpoint center (hardware-fast concentric circles)
       ctx.beginPath();
-      ctx.arc(cx, cy, 2.2, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 5.5, 0, Math.PI * 2);
+      ctx.fillStyle = pl.color;
+      ctx.globalAlpha = 0.28;
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, 2.0, 0, Math.PI * 2);
       ctx.fillStyle = '#ffffff';
       ctx.globalAlpha = 0.95;
-      ctx.shadowColor = pl.color;
-      ctx.shadowBlur = 14;
       ctx.fill();
     }
 
-    // 4. Draw delicate nodes with soft multi-layer bloom
+    // 4. Draw delicate nodes with concentric additive bloom (zero shadowBlur!)
     for (let i = 0; i < nodes.length; i++) {
       const n = nodes[i];
       const isHovered = (n.id === hoveredNodeId);
@@ -684,22 +696,31 @@ canvas#seiche-stage {
 
       if (n.cutoffGlow && n.cutoffGlow > 0.04) {
         ctx.beginPath();
-        ctx.arc(n.x, n.y, r + 1.2, 0, Math.PI * 2);
+        ctx.arc(n.x, n.y, r * 3.0, 0, Math.PI * 2);
         ctx.fillStyle = COL_CORAL;
-        ctx.globalAlpha = 0.9;
-        ctx.shadowColor = COL_CORAL;
-        ctx.shadowBlur = 18 * n.cutoffGlow;
+        ctx.globalAlpha = n.cutoffGlow * 0.24;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, r + 1.0, 0, Math.PI * 2);
+        ctx.fillStyle = COL_CORAL;
+        ctx.globalAlpha = 0.92;
         ctx.fill();
         n.cutoffGlow *= 0.91;
       } else if (n.glow > 0.03 || isHovered) {
         const g = Math.max(n.glow, isHovered ? 0.7 : 0);
-        // Outer bloom halo
+        // Outer soft bloom halo
         ctx.beginPath();
-        ctx.arc(n.x, n.y, r * 2.2, 0, Math.PI * 2);
+        ctx.arc(n.x, n.y, r * 3.4, 0, Math.PI * 2);
         ctx.fillStyle = n.color;
-        ctx.globalAlpha = g * 0.22;
-        ctx.shadowColor = n.color;
-        ctx.shadowBlur = 22 * g;
+        ctx.globalAlpha = g * 0.14;
+        ctx.fill();
+
+        // Mid bloom halo
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, r * 1.9, 0, Math.PI * 2);
+        ctx.fillStyle = n.color;
+        ctx.globalAlpha = g * 0.32;
         ctx.fill();
 
         // Crisp hot center
@@ -707,15 +728,12 @@ canvas#seiche-stage {
         ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';
         ctx.globalAlpha = 0.95;
-        ctx.shadowColor = n.color;
-        ctx.shadowBlur = 14 * g;
         ctx.fill();
       } else {
         ctx.beginPath();
         ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(148, 163, 196, 0.32)';
         ctx.globalAlpha = 1;
-        ctx.shadowBlur = 0;
         ctx.fill();
       }
 

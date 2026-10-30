@@ -401,6 +401,10 @@ async fn ws_dag_loop(broker: Arc<SseBroker>, tickers_override: Option<String>) {
 
     // Per-subscription-id sequence buffer (`DeltaBuffer`)
     let mut seq_buffers: HashMap<u64, DeltaBuffer<i64>> = HashMap::new();
+    // UI frame-rate pacing: emit at most 1 SSE update per >=75ms (~13 events/sec max)
+    // while tracking cumulative cutoffs andstabilizations on the backend.
+    let mut last_ui_emit = Instant::now() - Duration::from_secs(1);
+    let mut suppressed_cutoffs: u64 = 0;
 
     let key_id = std::env::var("API_KEY_ID").ok();
     let pem_opt = std::env::var("KALSHI_PRIVATE_KEY_PATH")
@@ -621,11 +625,21 @@ async fn ws_dag_loop(broker: Arc<SseBroker>, tickers_override: Option<String>) {
             let out_events = g.stabilize();
             let elapsed_ns = t0.elapsed().as_nanos() as u64;
             let recomputed = g.last_recompute_count;
-            let fee_cc = kalshi_taker_fee_cc(OBSERVATORY_SLOTS[slot].4, new_bid_cc);
+            if recomputed == 0 {
+                suppressed_cutoffs += 1;
+            }
             let harvest_fired = out_events.iter().any(|e| e.new_value > 0);
 
+            // Pace SSE emissions to <= 12 events/sec (>= 80ms gap) unless a harvest exit fired,
+            // so the browser UI never receives a 3,000-msg/sec firehose.
+            if !harvest_fired && last_ui_emit.elapsed() < Duration::from_millis(80) {
+                continue;
+            }
+            last_ui_emit = Instant::now();
+            let fee_cc = kalshi_taker_fee_cc(OBSERVATORY_SLOTS[slot].4, new_bid_cc);
+
             let ev_json = format!(
-                "{{\"kind\":\"tick\",\"msg_type\":\"{}\",\"ticker\":\"{}\",\"slot\":{},\"bid_cc\":{},\"delta_cc\":{},\"recomputed\":{},\"ns\":{},\"fee_cc\":{},\"harvest_fired\":{},\"seq\":{}}}",
+                "{{\"kind\":\"tick\",\"msg_type\":\"{}\",\"ticker\":\"{}\",\"slot\":{},\"bid_cc\":{},\"delta_cc\":{},\"recomputed\":{},\"ns\":{},\"fee_cc\":{},\"harvest_fired\":{},\"cutoffs\":{},\"seq\":{}}}",
                 msg_type,
                 market_ticker,
                 slot,
@@ -635,6 +649,7 @@ async fn ws_dag_loop(broker: Arc<SseBroker>, tickers_override: Option<String>) {
                 elapsed_ns.max(45),
                 fee_cc,
                 harvest_fired,
+                suppressed_cutoffs,
                 seq.unwrap_or(0)
             );
             broker.broadcast("dag", &ev_json);
