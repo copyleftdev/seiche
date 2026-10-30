@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-and-test:
+    name: TigerStyle Gate (fmt, clippy, test, prove, sim)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Format check
+        run: cargo fmt --all -- --check
+      - name: Clippy (zero warnings)
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Unit & VOPR tests
+        run: cargo test --release
+      - name: CLI Contract Smoke (prove + sim + shadow + fee)
+        run: |
+          cargo run --release -- prove --json
+          cargo run --release -- sim --seeds 50 --symbols 16 --steps 120 --json
+          cargo run --release -- shadow --json
+          cargo run --release -- fee --qty-h 500 --price-cc 9200 --json
